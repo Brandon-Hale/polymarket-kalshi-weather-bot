@@ -180,10 +180,11 @@ async def scan_and_trade_job():
                 log_event("info", "Bot is paused, skipping trades")
                 return
 
-            MAX_TRADES_PER_SCAN = 2
+            MAX_TRADES_PER_SCAN = settings.BTC_MAX_TRADES_PER_SCAN
             MIN_TRADE_SIZE = 10
             MAX_TRADE_FRACTION = settings.MAX_TRADE_BANKROLL_FRACTION
             MAX_TOTAL_PENDING = settings.MAX_TOTAL_PENDING_TRADES
+            MAX_BTC_ALLOCATION = settings.BTC_MAX_TOTAL_ALLOCATION
 
             if not settings.BTC_TRADING_ENABLED:
                 log_event("info", "BTC trading disabled — signals scanned but no trades placed")
@@ -195,6 +196,15 @@ async def scan_and_trade_job():
             total_pending = db.query(Trade).filter(Trade.settled == False).count()
             if total_pending >= MAX_TOTAL_PENDING:
                 log_event("info", f"Max pending trades reached ({total_pending}/{MAX_TOTAL_PENDING})")
+                return
+
+            # Check BTC aggregate open allocation
+            btc_pending = db.query(func.coalesce(func.sum(Trade.size), 0.0)).filter(
+                Trade.settled == False,
+                Trade.market_type == "btc",
+            ).scalar() or 0.0
+            if btc_pending >= MAX_BTC_ALLOCATION:
+                log_event("info", f"BTC allocation limit reached: ${btc_pending:.0f}/${MAX_BTC_ALLOCATION:.0f}")
                 return
 
             trades_executed = 0
@@ -332,9 +342,9 @@ async def weather_scan_and_trade_job():
             if daily_loss_breaker_tripped(db, state):
                 return
 
-            MAX_TRADES_PER_SCAN = 3
+            MAX_TRADES_PER_SCAN = settings.WEATHER_MAX_TRADES_PER_SCAN
             MIN_TRADE_SIZE = 10
-            MAX_WEATHER_ALLOCATION = 500.0  # Max total exposure to weather markets
+            MAX_WEATHER_ALLOCATION = settings.WEATHER_MAX_TOTAL_ALLOCATION
 
             # Check weather allocation limit
             weather_pending = db.query(func.coalesce(func.sum(Trade.size), 0.0)).filter(

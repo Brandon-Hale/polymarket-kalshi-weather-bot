@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     MAX_ENTRY_PRICE: float = 0.55  # Enter up to 55c
     MAX_TRADES_PER_WINDOW: int = 1
     MAX_TOTAL_PENDING_TRADES: int = 20
+    BTC_MAX_TRADES_PER_SCAN: int = 10        # Max new BTC trades per 1-min scan
+    BTC_MAX_TOTAL_ALLOCATION: float = 10000.0  # Max aggregate open BTC notional
 
     # Risk management
     DAILY_LOSS_FRACTION: float = 0.25  # Halt trading if today's settled losses ≥ 25% of start-of-day bankroll
@@ -84,6 +86,8 @@ class Settings(BaseSettings):
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 5000.0
     WEATHER_MIN_VOLUME: float = 1000.0  # Skip buckets with < $1k lifetime volume (illiquid)
+    WEATHER_MAX_TRADES_PER_SCAN: int = 10        # Max new weather trades per scan cycle
+    WEATHER_MAX_TOTAL_ALLOCATION: float = 10000.0  # Max aggregate open weather notional
     WEATHER_CITIES: str = (
         # US — cities with active Polymarket coverage
         "nyc,chicago,miami,los_angeles,austin,atlanta,seattle,"
