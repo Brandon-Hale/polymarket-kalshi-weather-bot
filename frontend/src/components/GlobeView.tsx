@@ -23,6 +23,14 @@ const CITIES: Record<string, { lat: number; lng: number; name: string }> = {
   miami: { lat: 25.7617, lng: -80.1918, name: 'MIA' },
   los_angeles: { lat: 34.0522, lng: -118.2437, name: 'LA' },
   denver: { lat: 39.7392, lng: -104.9903, name: 'DEN' },
+  boston: { lat: 42.3601, lng: -71.0589, name: 'BOS' },
+  phoenix: { lat: 33.4484, lng: -112.074, name: 'PHX' },
+  austin: { lat: 30.2672, lng: -97.7431, name: 'AUS' },
+  atlanta: { lat: 33.749, lng: -84.388, name: 'ATL' },
+  seattle: { lat: 47.6062, lng: -122.3321, name: 'SEA' },
+  houston: { lat: 29.7604, lng: -95.3698, name: 'HOU' },
+  philadelphia: { lat: 39.9526, lng: -75.1652, name: 'PHL' },
+  dallas: { lat: 32.7767, lng: -96.797, name: 'DAL' },
 }
 
 export function GlobeView({ forecasts, signals }: Props) {
