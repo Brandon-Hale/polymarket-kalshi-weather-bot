@@ -157,6 +157,7 @@ class BotStats(UTCBaseModel):
     total_pnl: float
     is_running: bool
     last_run: Optional[datetime]
+    mode: str = "sim"  # "sim" | "live"
 
 
 class CalibrationBucket(UTCBaseModel):
@@ -331,8 +332,20 @@ async def get_stats(db: Session = Depends(get_db)):
     pending_count = db.query(Trade).filter(Trade.result == "pending").count()
     win_rate = state.winning_trades / settled_count if settled_count > 0 else 0
 
+    # In live mode, override displayed bankroll with the actual Polymarket wallet balance.
+    from backend.data.polymarket_trader import PolymarketTrader, live_trading_enabled
+    is_live = live_trading_enabled()
+    bankroll = state.bankroll
+    if is_live:
+        trader = PolymarketTrader.get()
+        if trader is not None:
+            try:
+                bankroll = trader.get_usdc_balance()
+            except Exception as e:
+                logger.warning(f"Failed to fetch live wallet balance: {e}")
+
     return BotStats(
-        bankroll=state.bankroll,
+        bankroll=bankroll,
         total_trades=state.total_trades,
         winning_trades=state.winning_trades,
         win_rate=win_rate,
@@ -340,7 +353,8 @@ async def get_stats(db: Session = Depends(get_db)):
         pending_trades=pending_count,
         total_pnl=state.total_pnl,
         is_running=state.is_running,
-        last_run=state.last_run
+        last_run=state.last_run,
+        mode="live" if is_live else "sim",
     )
 
 
@@ -577,7 +591,8 @@ async def get_equity_curve(db: Session = Depends(get_db)):
 
 @app.post("/api/simulate-trade")
 async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
-    from backend.core.scheduler import log_event
+    from backend.core.scheduler import log_event, execute_trade_live_or_sim
+    from backend.data.polymarket_trader import live_trading_enabled
 
     signals = await scan_for_signals()
     signal = next((s for s in signals if s.market.market_id == signal_ticker), None)
@@ -590,25 +605,50 @@ async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Bot state not initialized")
 
     entry_price = signal.market.up_price if signal.direction == "up" else signal.market.down_price
+    requested_size = min(signal.suggested_size, state.bankroll * 0.05)
+
+    live_mode, exec_price, exec_size, live_res = execute_trade_live_or_sim(
+        direction=signal.direction,
+        entry_price=entry_price,
+        requested_size_usd=requested_size,
+        clob_token_ids=getattr(signal.market, "clob_token_ids", None),
+    )
+
+    if live_trading_enabled() and (live_res is None or not live_res.success):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Live order failed: {live_res.status if live_res else 'unavailable'} — {live_res.error if live_res else ''}",
+        )
 
     trade = Trade(
         market_ticker=signal.market.market_id,
         platform="polymarket",
         event_slug=signal.market.slug,
         direction=signal.direction,
-        entry_price=entry_price,
-        size=min(signal.suggested_size, state.bankroll * 0.05),
+        entry_price=exec_price,
+        size=exec_size,
         model_probability=signal.model_probability,
         market_price_at_entry=signal.market_probability,
-        edge_at_entry=signal.edge
+        edge_at_entry=signal.edge,
+        live_mode=live_mode,
+        live_order_id=(live_res.order_id if live_res else None),
+        live_filled_size=(live_res.filled_size if live_res else None),
+        live_status=(live_res.status if live_res else None),
     )
 
     db.add(trade)
     state.total_trades += 1
     db.commit()
 
-    log_event("trade", f"Manual BTC trade: {signal.direction.upper()} {signal.market.slug}")
-    return {"status": "ok", "trade_id": trade.id, "size": trade.size}
+    mode_label = "LIVE" if live_mode else "SIM"
+    log_event("trade", f"Manual BTC trade ({mode_label}): {signal.direction.upper()} {signal.market.slug}")
+    return {
+        "status": "ok",
+        "trade_id": trade.id,
+        "size": trade.size,
+        "live": live_mode,
+        "order_id": trade.live_order_id,
+    }
 
 
 @app.post("/api/run-scan")

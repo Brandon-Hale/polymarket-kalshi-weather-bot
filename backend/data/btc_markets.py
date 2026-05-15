@@ -33,6 +33,8 @@ class BtcMarket:
     window_end: datetime
     volume: float
     closed: bool
+    # Polymarket CLOB token IDs for [YES/UP, NO/DOWN]. Required for live orders.
+    clob_token_ids: Optional[List[str]] = None
 
     @property
     def event_slug(self) -> str:
@@ -124,6 +126,17 @@ def _parse_event_to_btc_market(event: dict) -> Optional[BtcMarket]:
 
     window_start = window_end - timedelta(minutes=5)
 
+    # CLOB token IDs (needed for live trading)
+    clob_token_ids: Optional[List[str]] = None
+    raw_tokens = market.get("clobTokenIds")
+    if raw_tokens:
+        try:
+            parsed = json.loads(raw_tokens) if isinstance(raw_tokens, str) else raw_tokens
+            if isinstance(parsed, list) and len(parsed) >= 2:
+                clob_token_ids = [str(parsed[0]), str(parsed[1])]
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
     return BtcMarket(
         slug=slug,
         market_id=str(market.get("id", "")),
@@ -133,6 +146,7 @@ def _parse_event_to_btc_market(event: dict) -> Optional[BtcMarket]:
         window_end=window_end,
         volume=float(market.get("volume", 0) or 0),
         closed=bool(market.get("closed", False) or event.get("closed", False)),
+        clob_token_ids=clob_token_ids,
     )
 
 

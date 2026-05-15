@@ -10,8 +10,19 @@ class Settings(BaseSettings):
     # Database (SQLite for Phase 1, PostgreSQL for production)
     DATABASE_URL: str = "sqlite:///./tradingbot.db"
 
-    # API Keys (optional)
+    # Polymarket live trading (all four required to enable LIVE mode + SIMULATION_MODE=False)
+    # See SETUP_LIVE.md for how to obtain these.
     POLYMARKET_API_KEY: Optional[str] = None
+    POLYMARKET_API_SECRET: Optional[str] = None
+    POLYMARKET_API_PASSPHRASE: Optional[str] = None
+    POLYMARKET_PRIVATE_KEY: Optional[str] = None   # 0x-prefixed hex; treat like cash
+    POLYMARKET_FUNDER_ADDRESS: Optional[str] = None  # Polymarket "proxy" address; defaults to signer address
+    POLYMARKET_HOST: str = "https://clob.polymarket.com"
+    POLYMARKET_CHAIN_ID: int = 137  # Polygon mainnet
+
+    # Live-mode safety caps (only used when SIMULATION_MODE=False)
+    LIVE_TRADE_MAX_USD: float = 25.0       # Hard cap per individual order
+    LIVE_TRADE_DAILY_USD_LIMIT: float = 100.0  # Halt new orders once today's notional exceeds this
 
     # Kalshi API
     KALSHI_API_KEY_ID: Optional[str] = None

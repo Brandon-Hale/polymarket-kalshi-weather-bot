@@ -82,6 +82,8 @@ class WeatherMarket:
     bucket_high_f: float = _POS_INF  # Exclusive upper bound in F
     bucket_label: str = ""           # Pretty label for UI, e.g. "28C", "56-57F", "≤45F"
     event_id: Optional[str] = None
+    # Polymarket CLOB token IDs for [YES, NO]. Required for live orders.
+    clob_token_ids: Optional[List[str]] = None
     # Deprecated — kept for back-compat in API response; will mirror bucket center in C if applicable.
     bucket_center_c: Optional[float] = None
 
@@ -407,6 +409,18 @@ def _parse_polymarket_bucketed(
     if volume < _settings.WEATHER_MIN_VOLUME:
         return None
 
+    # CLOB token IDs (for live trading; safe to be None in sim mode)
+    clob_token_ids: Optional[List[str]] = None
+    raw_tokens = market_data.get("clobTokenIds")
+    if raw_tokens:
+        try:
+            import json as _json
+            parsed = _json.loads(raw_tokens) if isinstance(raw_tokens, str) else raw_tokens
+            if isinstance(parsed, list) and len(parsed) >= 2:
+                clob_token_ids = [str(parsed[0]), str(parsed[1])]
+        except (ValueError, TypeError):
+            pass
+
     direction_map = {
         "equality": "equal",
         "floor": "at_or_below",
@@ -435,6 +449,7 @@ def _parse_polymarket_bucketed(
         bucket_label=label,
         bucket_center_c=center_c,
         event_id=event_id,
+        clob_token_ids=clob_token_ids,
     )
 
 

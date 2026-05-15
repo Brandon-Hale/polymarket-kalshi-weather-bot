@@ -193,9 +193,15 @@ function App() {
           }`}>
             {stats.is_running ? 'Live' : 'Idle'}
           </span>
-          <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            Sim
-          </span>
+          {stats.mode === 'live' ? (
+            <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-500/15 text-red-400 border border-red-500/30 animate-pulse">
+              Live
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              Sim
+            </span>
+          )}
         </div>
 
         {btcPrice && (

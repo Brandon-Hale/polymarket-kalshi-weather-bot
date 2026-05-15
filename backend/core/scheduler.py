@@ -10,6 +10,11 @@ import logging
 from backend.config import settings
 from backend.models.database import SessionLocal, Trade, BotState, Signal
 from backend.core.signals import scan_for_signals
+from backend.data.polymarket_trader import (
+    PolymarketTrader,
+    LiveOrderResult,
+    live_trading_enabled,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trading_bot")
@@ -20,6 +25,74 @@ scheduler: Optional[AsyncIOScheduler] = None
 # Event log for terminal display (in-memory, last 200 events)
 event_log: List[dict] = []
 MAX_LOG_SIZE = 200
+
+
+def _live_daily_notional_used() -> float:
+    """Total USD notional placed live today (UTC). Used for daily cap."""
+    db = SessionLocal()
+    try:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        total = (
+            db.query(func.coalesce(func.sum(Trade.size), 0.0))
+            .filter(Trade.live_mode == True, Trade.timestamp >= today_start)
+            .scalar()
+        )
+        return float(total or 0.0)
+    finally:
+        db.close()
+
+
+def execute_trade_live_or_sim(
+    *,
+    direction: str,                       # "yes"|"no"|"up"|"down"
+    entry_price: float,
+    requested_size_usd: float,
+    clob_token_ids: Optional[list],       # [yesTokenId, noTokenId] or None
+) -> tuple[bool, float, float, Optional[LiveOrderResult]]:
+    """
+    Decide between live Polymarket order and pure simulation.
+
+    Returns: (live_mode, executed_price, executed_size_usd, live_result_or_None)
+      * In SIM mode: (False, entry_price, requested_size_usd, None)
+      * In LIVE mode on success: (True, avg_fill_price, filled_notional_usd, result)
+      * In LIVE mode on failure: (False, 0, 0, result) — caller should NOT persist a trade
+    """
+    if not live_trading_enabled():
+        return False, entry_price, requested_size_usd, None
+
+    if not clob_token_ids or len(clob_token_ids) < 2:
+        log_event("warning", "Live mode enabled but market has no CLOB token IDs — skipping.")
+        return False, 0.0, 0.0, None
+
+    trader = PolymarketTrader.get()
+    if trader is None:
+        log_event("warning", "Live mode requested but Polymarket client unavailable — skipping.")
+        return False, 0.0, 0.0, None
+
+    # Daily notional cap
+    used = _live_daily_notional_used()
+    if used + requested_size_usd > settings.LIVE_TRADE_DAILY_USD_LIMIT:
+        log_event("warning",
+                  f"Daily live cap reached: ${used:.0f} used of ${settings.LIVE_TRADE_DAILY_USD_LIMIT:.0f}")
+        return False, 0.0, 0.0, None
+
+    # Pick the YES or NO token. Order is always BUY.
+    buy_yes = direction in ("yes", "up")
+    token_id = clob_token_ids[0] if buy_yes else clob_token_ids[1]
+
+    result = trader.place_order(
+        token_id=token_id,
+        side="BUY",
+        price=entry_price,
+        size_usd=min(requested_size_usd, settings.LIVE_TRADE_MAX_USD),
+    )
+
+    if not result.success or result.filled_size <= 0:
+        log_event("error",
+                  f"Live order rejected: {result.status} {result.error or ''} (size_usd=${requested_size_usd:.2f})")
+        return False, 0.0, 0.0, result
+
+    return True, result.avg_price, result.filled_notional, result
 
 
 def log_event(event_type: str, message: str, data: dict = None):
@@ -144,16 +217,32 @@ async def scan_and_trade_job():
                 # Map up/down to yes/no for storage
                 entry_price = signal.market.up_price if signal.direction == "up" else signal.market.down_price
 
+                # Route through live or sim
+                live_mode, exec_price, exec_size, live_res = execute_trade_live_or_sim(
+                    direction=signal.direction,
+                    entry_price=entry_price,
+                    requested_size_usd=trade_size,
+                    clob_token_ids=getattr(signal.market, "clob_token_ids", None),
+                )
+
+                # In live mode: only persist if order actually filled
+                if live_trading_enabled() and (live_res is None or not live_res.success):
+                    continue
+
                 trade = Trade(
                     market_ticker=signal.market.market_id,
                     platform="polymarket",
                     event_slug=signal.market.slug,
                     direction=signal.direction,
-                    entry_price=entry_price,
-                    size=trade_size,
+                    entry_price=exec_price,
+                    size=exec_size,
                     model_probability=signal.model_probability,
                     market_price_at_entry=signal.market_probability,
-                    edge_at_entry=signal.edge
+                    edge_at_entry=signal.edge,
+                    live_mode=live_mode,
+                    live_order_id=(live_res.order_id if live_res else None),
+                    live_filled_size=(live_res.filled_size if live_res else None),
+                    live_status=(live_res.status if live_res else None),
                 )
 
                 db.add(trade)
@@ -272,17 +361,32 @@ async def weather_scan_and_trade_job():
 
                 entry_price = signal.market.yes_price if signal.direction == "yes" else signal.market.no_price
 
+                # Route through live or sim
+                live_mode, exec_price, exec_size, live_res = execute_trade_live_or_sim(
+                    direction=signal.direction,
+                    entry_price=entry_price,
+                    requested_size_usd=trade_size,
+                    clob_token_ids=getattr(signal.market, "clob_token_ids", None),
+                )
+
+                if live_trading_enabled() and (live_res is None or not live_res.success):
+                    continue
+
                 trade = Trade(
                     market_ticker=signal.market.market_id,
                     platform="polymarket",
                     event_slug=signal.market.slug,
                     market_type="weather",
                     direction=signal.direction,
-                    entry_price=entry_price,
-                    size=trade_size,
+                    entry_price=exec_price,
+                    size=exec_size,
                     model_probability=signal.model_probability,
                     market_price_at_entry=signal.market_probability,
                     edge_at_entry=signal.edge,
+                    live_mode=live_mode,
+                    live_order_id=(live_res.order_id if live_res else None),
+                    live_filled_size=(live_res.filled_size if live_res else None),
+                    live_status=(live_res.status if live_res else None),
                 )
 
                 db.add(trade)

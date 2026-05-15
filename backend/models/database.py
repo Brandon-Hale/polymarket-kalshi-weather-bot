@@ -46,6 +46,12 @@ class Trade(Base):
     market_price_at_entry = Column(Float)
     edge_at_entry = Column(Float)
 
+    # Live trading audit (NULL for simulated trades)
+    live_mode = Column(Boolean, default=False)
+    live_order_id = Column(String, nullable=True, index=True)
+    live_filled_size = Column(Float, nullable=True)  # shares actually filled
+    live_status = Column(String, nullable=True)      # "matched"/"partial"/"rejected"/"error"
+
 
 class BtcPriceSnapshot(Base):
     """Cached BTC prices for momentum calculation."""
@@ -173,6 +179,21 @@ def ensure_schema():
         with engine.connect() as conn:
             with conn.begin():
                 conn.execute(text("ALTER TABLE trades ADD COLUMN market_type VARCHAR DEFAULT 'btc'"))
+
+    # Live trading columns (idempotent)
+    with engine.connect() as conn:
+        for col, coltype in [
+            ("live_mode", "BOOLEAN DEFAULT 0"),
+            ("live_order_id", "VARCHAR"),
+            ("live_filled_size", "FLOAT"),
+            ("live_status", "VARCHAR"),
+        ]:
+            if col not in columns:
+                try:
+                    with conn.begin():
+                        conn.execute(text(f"ALTER TABLE trades ADD COLUMN {col} {coltype}"))
+                except Exception:
+                    pass
 
     # Add calibration columns to signals table
     try:
