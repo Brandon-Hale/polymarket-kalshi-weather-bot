@@ -72,6 +72,8 @@ export interface BotStats {
   total_trades: number
   winning_trades: number
   win_rate: number
+  settled_trades?: number
+  pending_trades?: number
   total_pnl: number
   is_running: boolean
   last_run: string | null

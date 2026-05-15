@@ -6,7 +6,13 @@ interface Props {
 }
 
 export function StatsCards({ stats }: Props) {
-  const winRate = stats.total_trades > 0 ? (stats.winning_trades / stats.total_trades * 100) : 0
+  // Win rate is computed on settled trades only (pending excluded).
+  // Prefer backend's win_rate; fall back to local calc using settled_trades if needed.
+  const settled = stats.settled_trades ?? Math.max(stats.total_trades - (stats.pending_trades ?? 0), 0)
+  const winRate = settled > 0
+    ? (stats.win_rate ? stats.win_rate * 100 : (stats.winning_trades / settled * 100))
+    : 0
+  const pending = stats.pending_trades ?? 0
   const returnPercent = stats.bankroll - stats.total_pnl > 0
     ? ((stats.total_pnl / (stats.bankroll - stats.total_pnl)) * 100)
     : 0
@@ -40,16 +46,16 @@ export function StatsCards({ stats }: Props) {
           {winRate.toFixed(0)}%
         </span>
         <span className="text-[10px] text-neutral-600 tabular-nums">
-          {stats.winning_trades}/{stats.total_trades}
+          {stats.winning_trades}/{settled}
         </span>
       </motion.div>
 
       <div className="w-px h-3 bg-neutral-800" />
 
       <motion.div className="flex items-center gap-1.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
-        <span className="text-[10px] text-neutral-600 uppercase">Trades</span>
-        <span className="text-sm font-semibold tabular-nums text-neutral-100">{stats.total_trades}</span>
-        {stats.is_running && <div className="live-dot" />}
+        <span className="text-[10px] text-neutral-600 uppercase">Pending</span>
+        <span className="text-sm font-semibold tabular-nums text-neutral-100">{pending}</span>
+        {pending > 0 && <div className="live-dot" />}
       </motion.div>
     </div>
   )

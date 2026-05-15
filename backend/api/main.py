@@ -133,6 +133,8 @@ class BotStats(BaseModel):
     total_trades: int
     winning_trades: int
     win_rate: float
+    settled_trades: int = 0
+    pending_trades: int = 0
     total_pnl: float
     is_running: bool
     last_run: Optional[datetime]
@@ -304,13 +306,18 @@ async def get_stats(db: Session = Depends(get_db)):
     if not state:
         raise HTTPException(status_code=404, detail="Bot state not initialized")
 
-    win_rate = state.winning_trades / state.total_trades if state.total_trades > 0 else 0
+    # Win rate counts only settled trades (win/loss) — pending trades are excluded.
+    settled_count = db.query(Trade).filter(Trade.result.in_(("win", "loss"))).count()
+    pending_count = db.query(Trade).filter(Trade.result == "pending").count()
+    win_rate = state.winning_trades / settled_count if settled_count > 0 else 0
 
     return BotStats(
         bankroll=state.bankroll,
         total_trades=state.total_trades,
         winning_trades=state.winning_trades,
         win_rate=win_rate,
+        settled_trades=settled_count,
+        pending_trades=pending_count,
         total_pnl=state.total_pnl,
         is_running=state.is_running,
         last_run=state.last_run
