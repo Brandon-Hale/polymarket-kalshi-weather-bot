@@ -1,265 +1,222 @@
-# Prediction Market Trading Bot
+# Polymarket Trading Bot
 
-A multi-strategy trading bot that identifies pricing inefficiencies in prediction markets. Combines **BTC 5-minute microstructure analysis** with **ensemble weather forecasting** to trade on **Kalshi** and **Polymarket**. Features a professional React dashboard.
+A multi-strategy trading bot for **Polymarket** that combines **BTC 5-minute Up/Down**
+markets with **bucketed weather temperature** markets across US, Chinese, and European
+cities. Real-time React dashboard. Runs as **simulation** by default; flip one env var to
+trade with real money.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue) ![React](https://img.shields.io/badge/react-18+-61DAFB) ![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ![Dashboard](docs/dashboard.png)
 
-**100% free to run** - No paid APIs, no subscriptions. All data sources are free. Kalshi API key optional for Kalshi markets.
+## What it does
 
-## Overview
+| Strategy | How it works |
+|---|---|
+| **BTC 5-min Up/Down** | Every 60 s, computes RSI / momentum / VWAP / SMA / market-skew on 1-min candles. Trades the Polymarket 5-min market when its weighted composite signal disagrees with the market by ≥ 2 %. |
+| **Weather temperature buckets** | Every 5 min, fetches Polymarket's "Highest/Lowest temperature in CITY on DATE" markets (the bucketed °C and °F series). Pulls a 31-member GFS ensemble forecast from Open-Meteo and computes the probability of each bucket. Trades the bucket with the biggest expected-value mispricing when edge ≥ 8 %. |
 
-### Strategy 1: BTC 5-Minute Up/Down
-Scans Polymarket BTC 5-minute Up/Down markets every 60 seconds. Uses real-time 1-minute candle data from Coinbase/Kraken/Binance to compute RSI, momentum, VWAP deviation, SMA crossover, and market skew as a weighted composite signal. Trades when edge > 2%.
+Both strategies share the same Kelly-criterion sizing, daily-loss circuit breaker, and
+Polymarket settlement path.
 
-### Strategy 2: Weather Temperature (Kalshi + Polymarket)
-Scans weather temperature markets on **Kalshi** (KXHIGH series) and **Polymarket** every 5 minutes. Uses 31-member GFS ensemble forecasts from Open-Meteo to estimate the probability of temperature thresholds being exceeded. Trades when edge > 8%. Kalshi markets are auto-discovered via the `KXHIGHNY`, `KXHIGHCHI`, `KXHIGHMIA`, `KXHIGHLAX`, `KXHIGHDEN` series tickers.
+## Live or simulated
 
-### Key Features
+| Mode | When | Bankroll source |
+|---|---|---|
+| **Simulation** (default) | `SIMULATION_MODE=true` OR any Polymarket cred missing | DB value (`INITIAL_BANKROLL`) |
+| **Live** | `SIMULATION_MODE=false` + all 5 Polymarket creds set | Your Polymarket USDC wallet balance (read on-chain) |
 
-- **BTC Microstructure Analysis** - RSI, momentum (1m/5m/15m), VWAP, SMA crossover from real candle data
-- **Ensemble Weather Forecasting** - 31-member GFS ensemble from Open-Meteo for probabilistic temperature predictions
-- **Multi-Platform Trading** - Trades weather markets on both Kalshi (KXHIGH series) and Polymarket simultaneously
-- **Edge Detection** - Identifies mispriced markets across both strategies and platforms
-- **Kelly Criterion Sizing** - Fractional Kelly (15%) position sizing with per-trade caps
-- **Signal Calibration** - Tracks predictions vs outcomes with Brier score
-- **Professional Dashboard** - React 3-column dashboard with real-time updates
-- **Simulation Mode** - Paper trading with virtual bankroll tracking and equity curves
+Live mode requires manual account setup — see **[SETUP_LIVE.md](SETUP_LIVE.md)** for the
+step-by-step. Simulation mode runs without any keys.
 
-## Quick Start
-
-### 1. Backend Setup
+## Quick start (simulation)
 
 ```bash
-cd kalshi-trading-bot
-
-# Create virtual environment
+# 1. Backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Run the backend
+cp .env.example .env        # default config is sim-mode + sensible caps
 uvicorn backend.api.main:app --reload --port 8000
-```
 
-Backend will be at: http://localhost:8000
-API docs at: http://localhost:8000/docs
-
-### 2. Frontend Setup
-
-```bash
+# 2. Frontend (new terminal)
 cd frontend
-
-# Install dependencies
 npm install
-
-# Run the frontend
 npm run dev
 ```
 
-Frontend will be at: http://localhost:5173
+Open http://localhost:5173. The header badge should say **SIM** in amber.
 
-## Architecture
+## Configuration (`.env`)
+
+Every knob lives in `.env`. Defaults are tuned for a $1k sim bankroll.
+
+### Mode + bankroll
+| Var | Default | Notes |
+|---|---|---|
+| `SIMULATION_MODE` | `true` | `false` activates live trading (also needs Polymarket creds) |
+| `INITIAL_BANKROLL` | `1000` | Sim only; in live mode the bot reads real USDC balance instead |
+| `KELLY_FRACTION` | `0.15` | Fractional Kelly multiplier |
+| `MAX_TRADE_BANKROLL_FRACTION` | `0.05` | Hard cap per trade = 5 % of bankroll |
+| `MAX_TRADE_SIZE` | `5000` | Absolute dollar cap (binds at high bankroll) |
+| `DAILY_LOSS_FRACTION` | `0.25` | Halt new trades when day's settled losses ≥ 25 % of start-of-day bankroll |
+
+### Per-market trading switches
+Toggle each strategy independently. **Scans + dashboard display continue** regardless
+— only trade *placement* is gated.
+
+| Var | Default | Notes |
+|---|---|---|
+| `BTC_TRADING_ENABLED` | `true` | Disable BTC orders, keep BTC panel populated |
+| `WEATHER_TRADING_ENABLED` | `true` | Disable weather orders, keep weather panel populated |
+
+### BTC strategy
+| Var | Default | Notes |
+|---|---|---|
+| `MIN_EDGE_THRESHOLD` | `0.02` | 2 % edge required (BTC is near-coinflip) |
+| `MAX_ENTRY_PRICE` | `0.55` | Don't pay > 55 c/share |
+| `BTC_MAX_TRADES_PER_SCAN` | `10` | Max new BTC trades per 1-min scan |
+| `BTC_MAX_TOTAL_ALLOCATION` | `1000` | Stop opening once open BTC notional hits this |
+
+### Weather strategy
+| Var | Default | Notes |
+|---|---|---|
+| `WEATHER_ENABLED` | `true` | Master enable (scanning + trading) |
+| `WEATHER_MIN_EDGE_THRESHOLD` | `0.08` | 8 % edge required |
+| `WEATHER_MAX_ENTRY_PRICE` | `0.70` | Don't pay > 70 c/share |
+| `WEATHER_MIN_VOLUME` | `1000` | Skip illiquid buckets (< $1 k lifetime volume) |
+| `WEATHER_MAX_TRADES_PER_SCAN` | `10` | Max new weather trades per 5-min scan |
+| `WEATHER_MAX_TOTAL_ALLOCATION` | `10000` | Stop opening once open weather notional hits this |
+| `WEATHER_CITIES` | 26-city list | US + China/HK + Europe, comma-separated |
+
+### Polymarket live trading
+See **[SETUP_LIVE.md](SETUP_LIVE.md)** for how to obtain these.
+
+| Var | Notes |
+|---|---|
+| `POLYMARKET_PRIVATE_KEY` | Signer key (treat like cash) |
+| `POLYMARKET_FUNDER_ADDRESS` | Path A only: your Polymarket proxy address (the one holding USDC) |
+| `POLYMARKET_API_KEY` / `_SECRET` / `_PASSPHRASE` | CLOB API credentials |
+| `LIVE_TRADE_MAX_USD` | Hard cap per live order (default `5`) |
+| `LIVE_TRADE_DAILY_USD_LIMIT` | Halt live orders when today's notional hits this (default `25`) |
+
+## Cities covered
+
+**US (7):** NYC, Chicago, Miami, Los Angeles, Austin, Atlanta, Seattle
+**China + HK (8):** Beijing, Shanghai, Chongqing, Guangzhou, Chengdu, Wuhan, Hong Kong, Shenzhen
+**Europe (11):** London, Paris, Madrid, Milan, Munich, Amsterdam, Warsaw, Helsinki, Moscow, Istanbul, Ankara
+
+Edit `WEATHER_CITIES` in `.env` to enable/disable specific cities. New cities also need a
+lat/lon entry in `backend/data/weather.py:CITY_CONFIG` and a globe-marker entry in
+`frontend/src/components/GlobeView.tsx:CITIES`.
+
+## How it works
+
+### BTC 5-min strategy
+1. Pull 60 one-minute BTC candles (Coinbase → Kraken → Binance fallback chain).
+2. Compute RSI(14), momentum (1m / 5m / 15m), VWAP deviation, SMA crossover, market skew.
+3. Weighted composite → model UP probability (clipped to 0.35–0.65).
+4. Compare to Polymarket's UP / DOWN price, pick the higher-edge side.
+5. If `|edge| ≥ 2 %` and entry price ≤ 55 c, place trade sized via fractional Kelly.
+
+### Weather bucket strategy
+1. Pull all Polymarket "Highest/Lowest temperature in CITY on DATE" events
+   (`/events?tag_slug=weather`, paginated).
+2. Parse 4 bucket shapes per event:
+   - `equality` — e.g. "be 28°C" (1°C window)
+   - `floor` — "be 25°C or below"
+   - `ceiling` — "be 35°C or higher"
+   - `range` — "between 56-57°F" (2°F window)
+3. For each bucket, count fraction of ensemble members whose daily max/min falls in
+   that range → model probability.
+4. Pick the single biggest-edge bucket per (city, date) event to avoid double-betting.
+5. If edge ≥ 8 %, entry price ≤ 70 c, and bucket volume ≥ $1 k → place trade.
+
+### Edge & sizing
+```
+edge      = model_probability − market_probability
+shares    = trade_usd / price
+kelly     = (p × b − q) / b   where b = (1 − price) / price
+trade_usd = min(
+    kelly × KELLY_FRACTION × bankroll,    # fractional Kelly
+    MAX_TRADE_BANKROLL_FRACTION × bankroll, # per-trade fraction cap
+    MAX_TRADE_SIZE                         # absolute dollar cap
+)
+```
+
+## CSV export (tax-ready)
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                          FRONTEND                                │
-│  React + TypeScript + TanStack Query + Tailwind                  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
-│  │Indicators│ │ Weather  │ │ Signals  │ │  Trades  │            │
-│  │  + Chart │ │  Panel   │ │  Table   │ │  Table   │            │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘            │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                          BACKEND                                 │
-│  FastAPI + Python + SQLite + APScheduler                         │
-│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐        │
-│  │  BTC      │ │ Weather   │ │  Signal   │ │Settlement │        │
-│  │ Signals   │ │ Signals   │ │ Scheduler │ │  Engine   │        │
-│  └───────────┘ └───────────┘ └───────────┘ └───────────┘        │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                        DATA SOURCES                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
-│  │Coinbase/ │ │Open-Meteo│ │  NWS     │ │Polymarket│ │ Kalshi │ │
-│  │Kraken/   │ │ Ensemble │ │  API     │ │Gamma API │ │  API   │ │
-│  │Binance   │ │  (GFS)   │ │          │ │          │ │(KXHIGH)│ │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘ │
-└──────────────────────────────────────────────────────────────────┘
+GET /api/trades/export.csv          # settled trades only
+GET /api/trades/export.csv?include_pending=true
 ```
 
-## How It Works
+21 columns covering Form 8949 / Schedule D essentials: entry/exit timestamps in UTC,
+cost basis, proceeds, realized P&L, holding period, model-vs-market at entry. Click the
+**Export CSV** button on the Trades panel header to download.
 
-### BTC 5-Minute Strategy
-1. Fetch 60 one-minute candles from Coinbase/Kraken/Binance (fallback chain)
-2. Compute 5 indicators: RSI(14), Momentum(1m/5m/15m), VWAP deviation, SMA crossover, Market skew
-3. Convergence filter: require 2+ of 4 indicators to agree
-4. Weighted composite -> model UP probability (0.35-0.65 range)
-5. Compare to Polymarket prices, trade the side with higher edge
+## Useful API endpoints
 
-### Weather Temperature Strategy
-1. Fetch open weather markets from Kalshi (KXHIGH series, RSA-PSS auth) and Polymarket (Gamma API)
-2. Fetch 31-member GFS ensemble forecasts from Open-Meteo
-3. Count fraction of members above/below the market's temperature threshold
-4. That fraction = model probability (e.g., 28/31 members above 70F = 90% probability)
-5. Compare to market price on either platform, trade when edge > 8%
-6. Confidence = ensemble agreement (how one-sided the 31 members are)
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/dashboard` | All dashboard data in one call |
+| `GET /api/stats` | Bankroll, P&L, mode (sim/live), pending count |
+| `GET /api/btc/windows` | Active BTC 5-min markets |
+| `GET /api/weather/forecasts` | Ensemble forecasts for all configured cities |
+| `GET /api/weather/markets` | Weather markets currently in scope |
+| `GET /api/trades?limit=50` | Recent trades |
+| `GET /api/calibration` | Model calibration (predicted vs realized win rate) |
+| `POST /api/run-scan` | Trigger manual scan (BTC + weather) |
+| `POST /api/bot/start` | Start automatic trading |
+| `POST /api/bot/stop` | Pause |
+| `POST /api/bot/reset` | Reset all trades |
 
-### Edge Calculation
-```
-edge = model_probability - market_probability
-```
-BTC signals require |edge| > 2%. Weather signals require |edge| > 8%.
+## Data sources
 
-### Position Sizing (Fractional Kelly)
-```
-kelly = (win_prob * odds - lose_prob) / odds
-position_size = kelly * 0.15 * bankroll
-```
-Capped at 5% of bankroll and $75 (BTC) or $100 (Weather) per trade.
+| Source | Data | Auth |
+|---|---|---|
+| Coinbase / Kraken / Binance | BTC 1-min candles (fallback chain) | None |
+| Open-Meteo Ensemble | 31-member GFS daily max/min | None |
+| Polymarket Gamma API | Markets + resolution | None for reads |
+| Polymarket CLOB | Order placement (live mode only) | API key + wallet |
 
-## API Endpoints
+100 % free for simulation. For live trading you need USDC on Polygon (a few cents in gas).
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dashboard` | GET | All dashboard data in one call |
-| `/api/btc/price` | GET | Current BTC price + momentum |
-| `/api/btc/windows` | GET | Active BTC 5-min windows |
-| `/api/signals` | GET | Current BTC trading signals |
-| `/api/signals/actionable` | GET | BTC signals above threshold |
-| `/api/kalshi/status` | GET | Kalshi API auth status + balance |
-| `/api/weather/forecasts` | GET | Ensemble forecasts for all cities |
-| `/api/weather/markets` | GET | Weather markets (Kalshi + Polymarket) |
-| `/api/weather/signals` | GET | Weather trading signals (both platforms) |
-| `/api/trades` | GET | Trade history |
-| `/api/stats` | GET | Bot statistics |
-| `/api/calibration` | GET | Signal calibration data |
-| `/api/run-scan` | POST | Trigger BTC + weather scan |
-| `/api/simulate-trade` | POST | Simulate a BTC trade |
-| `/api/settle-trades` | POST | Check settlements |
-| `/api/bot/start` | POST | Start trading |
-| `/api/bot/stop` | POST | Pause trading |
-| `/api/bot/reset` | POST | Reset all trades |
-| `/api/events` | GET | Event log |
-| `/ws/events` | WS | Real-time event stream |
-
-## Configuration
-
-All settings in `backend/config.py`, overridable via environment variables:
-
-### BTC Settings
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `SCAN_INTERVAL_SECONDS` | 60 | BTC scan frequency |
-| `MIN_EDGE_THRESHOLD` | 0.02 | Minimum edge (2%) |
-| `MAX_ENTRY_PRICE` | 0.55 | Max entry price (55c) |
-| `MAX_TRADE_SIZE` | 75.0 | Max $ per BTC trade |
-| `KELLY_FRACTION` | 0.15 | Fractional Kelly multiplier |
-
-### Kalshi Settings
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `KALSHI_API_KEY_ID` | None | Kalshi API key ID |
-| `KALSHI_PRIVATE_KEY_PATH` | None | Path to RSA private key PEM file |
-| `KALSHI_ENABLED` | True | Enable/disable Kalshi market fetching |
-
-### Weather Settings
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `WEATHER_ENABLED` | True | Enable/disable weather trading |
-| `WEATHER_SCAN_INTERVAL_SECONDS` | 300 | Weather scan frequency (5 min) |
-| `WEATHER_MIN_EDGE_THRESHOLD` | 0.08 | Minimum edge (8%) |
-| `WEATHER_MAX_ENTRY_PRICE` | 0.70 | Max entry price (70c) |
-| `WEATHER_MAX_TRADE_SIZE` | 100.0 | Max $ per weather trade |
-| `WEATHER_CITIES` | nyc,chicago,miami,los_angeles,denver | Cities to track |
-
-### Risk Management
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `DAILY_LOSS_FRACTION` | 0.25 | Daily loss circuit breaker — fraction of start-of-day bankroll |
-| `MAX_TOTAL_PENDING_TRADES` | 20 | Max open positions |
-| `INITIAL_BANKROLL` | 1000.0 | Starting paper bankroll |
-
-## Supported Cities (Weather)
-
-| City | Station | Tracked |
-|------|---------|---------|
-| New York | KNYC | Default |
-| Chicago | KORD | Default |
-| Miami | KMIA | Default |
-| Los Angeles | KLAX | Default |
-| Denver | KDEN | Default |
-
-Add more cities by editing `WEATHER_CITIES` in config and adding entries to `CITY_CONFIG` in `backend/data/weather.py`.
-
-## Data Sources
-
-| Source | Data | Used For | Auth |
-|--------|------|----------|------|
-| Coinbase | BTC 1-min candles | BTC microstructure | None |
-| Kraken | BTC 1-min candles | BTC fallback | None |
-| Binance | BTC 1-min candles | BTC fallback | None |
-| Open-Meteo | GFS Ensemble (31 members) | Weather probability | None |
-| NWS API | Observed temperatures | Weather settlement | None |
-| Polymarket | Market prices + resolution | Both strategies | None |
-| Kalshi | Weather temperature markets (KXHIGH) | Weather strategy | RSA key |
-
-## Project Structure
+## Project structure
 
 ```
-kalshi-trading-bot/
+.
 ├── backend/
-│   ├── api/
-│   │   └── main.py                 # FastAPI routes + dashboard
+│   ├── api/main.py                     FastAPI routes + dashboard endpoint
 │   ├── core/
-│   │   ├── signals.py              # BTC signal generation
-│   │   ├── weather_signals.py      # Weather signal generation
-│   │   ├── scheduler.py            # Background jobs (BTC + weather)
-│   │   └── settlement.py           # Trade settlement (routes by market_type)
+│   │   ├── signals.py                  BTC signal generation
+│   │   ├── weather_signals.py          Weather signal generation (bucketed)
+│   │   ├── scheduler.py                BTC + weather background jobs, live/sim routing
+│   │   └── settlement.py               Trade settlement (Polymarket resolution)
 │   ├── data/
-│   │   ├── btc_markets.py          # Polymarket BTC market fetcher
-│   │   ├── crypto.py               # BTC price + microstructure
-│   │   ├── kalshi_client.py        # Kalshi API client (RSA-PSS auth)
-│   │   ├── kalshi_markets.py       # Kalshi weather market fetcher (KXHIGH)
-│   │   ├── weather.py              # Open-Meteo ensemble + NWS observations
-│   │   ├── weather_markets.py      # Polymarket weather market fetcher
-│   │   └── markets.py              # Generic market wrapper
-│   ├── models/
-│   │   └── database.py             # SQLAlchemy models (market_type column)
-│   └── config.py                   # All settings (BTC + weather)
+│   │   ├── btc_markets.py              Polymarket BTC market fetcher
+│   │   ├── weather.py                  Open-Meteo ensemble + city config
+│   │   ├── weather_markets.py          Polymarket weather bucket parser
+│   │   ├── polymarket_trader.py        Live-trading client (py-clob-client)
+│   │   └── crypto.py                   BTC price + microstructure indicators
+│   ├── models/database.py              SQLAlchemy (Trade, Signal, BotState)
+│   └── config.py                       All settings
 ├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── GlobeView.tsx        # 3D globe with city markers
-│   │   │   ├── EdgeDistribution.tsx # Edge distribution chart
-│   │   │   ├── MicrostructurePanel.tsx # RSI gauge + indicator meters
-│   │   │   ├── WeatherPanel.tsx     # Weather forecasts per city
-│   │   │   ├── CalibrationPanel.tsx # Prediction accuracy tracking
-│   │   │   ├── StatsCards.tsx       # Performance metrics
-│   │   │   ├── SignalsTable.tsx     # BTC + Weather signals combined
-│   │   │   ├── TradesTable.tsx      # Trade history
-│   │   │   ├── EquityChart.tsx      # P&L chart
-│   │   │   └── Terminal.tsx         # Event log + controls
-│   │   ├── App.tsx                  # 3-column grid dashboard
-│   │   ├── api.ts                   # API client
-│   │   └── types.ts                 # TypeScript interfaces
-│   └── package.json
-├── requirements.txt
-├── run.py
+│   └── src/                            React + TanStack Query + Tailwind
+├── .env.example                        Reference config
+├── SETUP_LIVE.md                       Live trading setup walkthrough
+├── ARCHITECTURE.md                     Deeper design doc
+├── TRADING_STRATEGY.md                 Strategy notes
 └── README.md
 ```
 
 ## Disclaimer
 
-This is a **simulation tool** for educational purposes. It does not place real trades or use real money. Past performance in simulation does not guarantee future results. Prediction markets involve risk of loss.
+Simulation mode trades nothing real. Live mode trades real money — read
+`SETUP_LIVE.md` and start with tiny caps. The bot's edges are *hypotheses backed by
+capital*, not proven returns. Past performance ≠ future performance. Prediction markets
+involve risk of total loss on each trade.
 
 ## License
 
-MIT - do whatever you want with it.
+MIT.

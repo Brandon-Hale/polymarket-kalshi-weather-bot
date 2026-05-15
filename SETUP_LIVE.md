@@ -107,9 +107,19 @@ POLYMARKET_API_PASSPHRASE=YOUR_API_PASSPHRASE
 # THE big switch
 SIMULATION_MODE=False
 
-# Live-mode safety caps — start TIGHT
+# Live-mode safety caps — start TIGHT, raise after confirming fills work
 LIVE_TRADE_MAX_USD=5.0          # Hard cap per individual order
 LIVE_TRADE_DAILY_USD_LIMIT=25.0 # Halt new orders once today's notional hits this
+
+# Per-strategy switches (scans + dashboard still show data when off, just no orders)
+BTC_TRADING_ENABLED=true        # set false to disable BTC orders
+WEATHER_TRADING_ENABLED=true    # set false to disable weather orders
+
+# Strategy-level allocation caps (already in your .env, repeated for visibility)
+BTC_MAX_TRADES_PER_SCAN=10
+BTC_MAX_TOTAL_ALLOCATION=1000.0
+WEATHER_MAX_TRADES_PER_SCAN=10
+WEATHER_MAX_TOTAL_ALLOCATION=10000.0
 ```
 
 **Never commit `.env`.** It's already in `.gitignore`, double-check.
@@ -148,9 +158,24 @@ In the dashboard, the `SIM` badge in the header turns into a pulsing red `LIVE` 
 | 2. Small | `LIVE_TRADE_MAX_USD=10`, `DAILY=50` | Calibration accumulates, no surprises |
 | 3. Real | Raise to your comfort | Only after ≥30 settled live trades show calibration ≥ 0.5 |
 
-## 9 — Kill switch
+## 9 — Stopping just one strategy
 
-To stop live trading immediately:
+You don't have to flip the whole bot to sim to silence a stream:
+
+```bash
+# Just stop weather, keep BTC trading
+WEATHER_TRADING_ENABLED=false
+
+# Just stop BTC, keep weather trading
+BTC_TRADING_ENABLED=false
+```
+
+Restart backend. The disabled stream's signals still appear on the dashboard so you can
+see what it *would* trade — only order placement is gated.
+
+## 10 — Kill switch
+
+To stop all live trading immediately:
 
 **Fastest** — edit `.env` and set `SIMULATION_MODE=True`, then restart the backend. New trades stop instantly; in-flight orders are unaffected (Polymarket FAK orders don't rest).
 
