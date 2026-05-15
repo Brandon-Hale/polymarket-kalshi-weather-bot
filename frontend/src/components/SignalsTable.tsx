@@ -79,21 +79,32 @@ export function SignalsTable({ signals, weatherSignals, onSimulateTrade, isSimul
       actionable: s.actionable,
     }))
 
-    const wx: UnifiedSignal[] = weatherSignals.map(s => ({
-      key: `wx-${s.market_id}`,
-      ticker: s.market_id,
-      title: `${s.city_name} ${s.metric} ${s.direction} ${s.threshold_f}F`,
-      platform: s.platform || 'kalshi',
-      category: 'WX',
-      direction: s.direction,
-      edge: s.edge,
-      modelProb: s.model_probability,
-      marketProb: s.market_probability,
-      confidence: s.confidence,
-      suggestedSize: s.suggested_size,
-      reasoning: s.reasoning,
-      actionable: s.actionable,
-    }))
+    const wx: UnifiedSignal[] = weatherSignals.map(s => {
+      let title: string
+      if (s.bucket_type === 'equality' && s.bucket_center_c != null) {
+        title = `${s.city_name} high = ${s.bucket_center_c.toFixed(0)}°C`
+      } else if (s.bucket_type === 'floor' && s.bucket_center_c != null) {
+        title = `${s.city_name} high ≤ ${s.bucket_center_c.toFixed(0)}°C`
+      } else {
+        const unit = s.unit ?? 'F'
+        title = `${s.city_name} ${s.metric} ${s.direction} ${s.threshold_f.toFixed(0)}°${unit}`
+      }
+      return {
+        key: `wx-${s.market_id}`,
+        ticker: s.market_id,
+        title,
+        platform: s.platform || 'polymarket',
+        category: 'WX',
+        direction: s.direction,
+        edge: s.edge,
+        modelProb: s.model_probability,
+        marketProb: s.market_probability,
+        confidence: s.confidence,
+        suggestedSize: s.suggested_size,
+        reasoning: s.reasoning,
+        actionable: s.actionable,
+      }
+    })
 
     return [...btc, ...wx]
   }, [signals, weatherSignals])
@@ -141,24 +152,24 @@ export function SignalsTable({ signals, weatherSignals, onSimulateTrade, isSimul
   }
 
   return (
-    <table className="w-full">
+    <table className="w-full table-fixed">
       <thead className="sticky top-0 bg-[#0a0a0a] z-10">
         <tr className="text-neutral-600 text-left text-[10px] border-b border-neutral-800">
-          <th className="py-1.5 px-1.5 font-medium w-6"></th>
-          <th className="py-1.5 px-1.5 font-medium w-5"></th>
+          <th className="py-1.5 px-1 font-medium w-7"></th>
+          <th className="py-1.5 px-1 font-medium w-7"></th>
           <th className="py-1.5 px-1.5 font-medium">Signal</th>
-          <th className="py-1.5 px-1.5 font-medium text-center w-8">Dir</th>
+          <th className="py-1.5 px-1 font-medium text-center w-10">Dir</th>
           <th
-            className="py-1.5 px-1.5 font-medium text-right cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium text-right cursor-pointer hover:text-neutral-400 w-12"
             onClick={() => handleSort('edge')}
           >
             <div className="flex items-center justify-end gap-0.5">
               Edge <SortIcon column="edge" />
             </div>
           </th>
-          <th className="py-1.5 px-1.5 font-medium text-right w-10"></th>
+          <th className="py-1.5 px-1 font-medium text-right w-10"></th>
           <th
-            className="py-1.5 px-1.5 font-medium text-right cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium text-right cursor-pointer hover:text-neutral-400 w-10"
             onClick={() => handleSort('model_probability')}
           >
             <div className="flex items-center justify-end gap-0.5">
@@ -166,14 +177,14 @@ export function SignalsTable({ signals, weatherSignals, onSimulateTrade, isSimul
             </div>
           </th>
           <th
-            className="py-1.5 px-1.5 font-medium text-right cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium text-right cursor-pointer hover:text-neutral-400 w-12"
             onClick={() => handleSort('suggested_size')}
           >
             <div className="flex items-center justify-end gap-0.5">
               Size <SortIcon column="suggested_size" />
             </div>
           </th>
-          <th className="py-1.5 px-1.5 font-medium text-right w-10"></th>
+          <th className="py-1.5 px-1 font-medium text-right w-12"></th>
         </tr>
       </thead>
       <tbody>
@@ -193,39 +204,39 @@ export function SignalsTable({ signals, weatherSignals, onSimulateTrade, isSimul
                 }`}
                 onClick={() => setExpandedKey(isExpanded ? null : sig.key)}
               >
-                <td className="py-1 px-1.5">
+                <td className="py-1 px-1">
                   <PlatformBadge platform={sig.platform} />
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="py-1 px-1">
                   <CategoryBadge category={sig.category} />
                 </td>
-                <td className="py-1 px-1.5">
-                  <span className="text-neutral-400 truncate block max-w-[110px]" title={sig.title}>
+                <td className="py-1 px-1.5 overflow-hidden">
+                  <span className="text-neutral-400 truncate block" title={sig.title}>
                     {sig.title}
                   </span>
                 </td>
-                <td className="py-1 px-1.5 text-center">
+                <td className="py-1 px-1 text-center">
                   <span className={`text-[10px] font-semibold uppercase ${isUp ? 'text-green-500' : 'text-red-500'}`}>
                     {sig.direction}
                   </span>
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="py-1 px-1 text-right">
                   <span className={`font-semibold tabular-nums ${
                     sig.edge > 0 ? 'text-green-500' : sig.edge < 0 ? 'text-red-500' : 'text-neutral-600'
                   }`}>
                     {sig.edge === 0 ? '-' : `${Math.abs(sig.edge * 100).toFixed(1)}%`}
                   </span>
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="py-1 px-1">
                   <EdgeBar edge={sig.edge} />
                 </td>
-                <td className="py-1 px-1.5 text-right text-neutral-300 tabular-nums">
+                <td className="py-1 px-1 text-right text-neutral-300 tabular-nums">
                   {(sig.modelProb * 100).toFixed(0)}%
                 </td>
-                <td className="py-1 px-1.5 text-right text-blue-400 tabular-nums">
+                <td className="py-1 px-1 text-right text-blue-400 tabular-nums">
                   {sig.suggestedSize > 0 ? `$${sig.suggestedSize.toFixed(0)}` : '-'}
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="py-1 px-1 text-right">
                   {sig.actionable && sig.category === 'BTC' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onSimulateTrade(sig.ticker) }}

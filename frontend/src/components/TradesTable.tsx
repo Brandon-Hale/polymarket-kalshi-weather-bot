@@ -67,12 +67,12 @@ export function TradesTable({ trades }: Props) {
   }
 
   return (
-    <table className="w-full">
+    <table className="w-full table-fixed">
       <thead className="sticky top-0 bg-[#0a0a0a] z-10">
         <tr className="text-neutral-600 text-left text-[10px] border-b border-neutral-800">
-          <th className="py-1.5 px-1.5 font-medium w-5"></th>
+          <th className="py-1.5 px-1 font-medium w-7"></th>
           <th
-            className="py-1.5 px-1.5 font-medium cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium cursor-pointer hover:text-neutral-400 w-10"
             onClick={() => handleSort('result')}
           >
             <div className="flex items-center gap-0.5">
@@ -80,9 +80,9 @@ export function TradesTable({ trades }: Props) {
             </div>
           </th>
           <th className="py-1.5 px-1.5 font-medium">Market</th>
-          <th className="py-1.5 px-1.5 font-medium text-center">Dir</th>
+          <th className="py-1.5 px-1 font-medium text-center w-10">Dir</th>
           <th
-            className="py-1.5 px-1.5 font-medium text-right cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium text-right cursor-pointer hover:text-neutral-400 w-14"
             onClick={() => handleSort('size')}
           >
             <div className="flex items-center justify-end gap-0.5">
@@ -90,7 +90,7 @@ export function TradesTable({ trades }: Props) {
             </div>
           </th>
           <th
-            className="py-1.5 px-1.5 font-medium text-right cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium text-right cursor-pointer hover:text-neutral-400 w-14"
             onClick={() => handleSort('pnl')}
           >
             <div className="flex items-center justify-end gap-0.5">
@@ -98,7 +98,7 @@ export function TradesTable({ trades }: Props) {
             </div>
           </th>
           <th
-            className="py-1.5 px-1.5 font-medium text-right cursor-pointer hover:text-neutral-400"
+            className="py-1.5 px-1 font-medium text-right cursor-pointer hover:text-neutral-400 w-14"
             onClick={() => handleSort('timestamp')}
           >
             <div className="flex items-center justify-end gap-0.5">
@@ -123,34 +123,34 @@ export function TradesTable({ trades }: Props) {
                 transition={{ delay: i * 0.02 }}
                 className="border-b border-neutral-800/50 hover:bg-neutral-800/30 text-[11px]"
               >
-                <td className="py-1 px-1.5">
+                <td className="py-1 px-1">
                   {style && (
                     <span className={`platform-badge ${style.badge}`}>
                       {style.icon}
                     </span>
                   )}
                 </td>
-                <td className="py-1 px-1.5">
+                <td className="py-1 px-1">
                   <span className={`text-[9px] font-medium uppercase ${
                     isPending ? 'text-amber-500' : isWin ? 'text-green-500' : 'text-red-500'
                   }`}>
                     {isPending ? 'PND' : isWin ? 'WIN' : 'LOSS'}
                   </span>
                 </td>
-                <td className="py-1 px-1.5">
-                  <span className="text-neutral-400 truncate block max-w-[100px]" title={trade.event_slug || trade.market_ticker}>
+                <td className="py-1 px-1.5 overflow-hidden">
+                  <span className="text-neutral-400 truncate block" title={trade.event_slug || trade.market_ticker}>
                     {(trade.event_slug || trade.market_ticker).replace('btc-updown-5m-', '')}
                   </span>
                 </td>
-                <td className="py-1 px-1.5 text-center">
+                <td className="py-1 px-1 text-center">
                   <span className={`text-[10px] font-semibold uppercase ${isUp ? 'text-green-500' : 'text-red-500'}`}>
                     {trade.direction}
                   </span>
                 </td>
-                <td className="py-1 px-1.5 text-right text-neutral-300 tabular-nums">
+                <td className="py-1 px-1 text-right text-neutral-300 tabular-nums">
                   ${trade.size.toFixed(0)}
                 </td>
-                <td className="py-1 px-1.5 text-right">
+                <td className="py-1 px-1 text-right">
                   {trade.pnl !== null ? (
                     <span className={`font-semibold tabular-nums ${
                       trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'
@@ -161,7 +161,7 @@ export function TradesTable({ trades }: Props) {
                     <span className="text-neutral-600">-</span>
                   )}
                 </td>
-                <td className="py-1 px-1.5 text-right text-[10px] text-neutral-600 tabular-nums">
+                <td className="py-1 px-1 text-right text-[10px] text-neutral-600 tabular-nums">
                   {formatDistanceToNow(new Date(trade.timestamp), { addSuffix: false })}
                 </td>
               </motion.tr>

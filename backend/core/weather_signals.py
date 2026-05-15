@@ -58,8 +58,12 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
     if not forecast or not forecast.member_highs:
         return None
 
-    # Calculate model probability based on market's question
-    if market.metric == "high":
+    # Calculate model probability based on market's bucket type
+    if market.bucket_type == "equality" and market.bucket_center_c is not None:
+        model_yes_prob = forecast.probability_high_in_bucket_c(market.bucket_center_c)
+    elif market.bucket_type == "floor" and market.bucket_center_c is not None:
+        model_yes_prob = forecast.probability_high_at_or_below_c(market.bucket_center_c)
+    elif market.metric == "high":
         if market.direction == "above":
             model_yes_prob = forecast.probability_high_above(market.threshold_f)
         else:
@@ -84,14 +88,15 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
     if entry_price > settings.WEATHER_MAX_ENTRY_PRICE:
         edge = 0.0  # Zero out but still return for UI visibility
 
-    # Confidence = ensemble agreement (how one-sided the members are)
-    if market.metric == "high":
-        members = forecast.member_highs
+    # Confidence: how one-sided the ensemble's verdict on this bet is.
+    # For binary/threshold markets this is ensemble agreement around the threshold.
+    # For bucketed markets it is just max(p, 1-p).
+    if market.bucket_type in ("equality", "floor"):
+        agreement_frac = max(model_yes_prob, 1.0 - model_yes_prob)
     else:
-        members = forecast.member_lows
-
-    above_count = sum(1 for m in members if m > market.threshold_f)
-    agreement_frac = max(above_count, len(members) - above_count) / len(members)
+        members = forecast.member_highs if market.metric == "high" else forecast.member_lows
+        above_count = sum(1 for m in members if m > market.threshold_f)
+        agreement_frac = max(above_count, len(members) - above_count) / len(members)
     confidence = min(0.9, agreement_frac)
 
     # Kelly sizing
@@ -116,9 +121,16 @@ async def generate_weather_signal(market: WeatherMarket) -> Optional[WeatherTrad
         filter_notes.append(f"entry {entry_price:.0%} > {settings.WEATHER_MAX_ENTRY_PRICE:.0%}")
     filter_note = f" [{', '.join(filter_notes)}]" if filter_notes else ""
 
+    if market.bucket_type == "equality" and market.bucket_center_c is not None:
+        bet_descriptor = f"high = {market.bucket_center_c:.0f}C"
+    elif market.bucket_type == "floor" and market.bucket_center_c is not None:
+        bet_descriptor = f"high <= {market.bucket_center_c:.0f}C"
+    else:
+        bet_descriptor = f"{market.metric} {market.direction} {market.threshold_f:.0f}F"
+
     reasoning = (
         f"[{filter_status}]{filter_note} "
-        f"{market.city_name} {market.metric} {market.direction} {market.threshold_f:.0f}F on {market.target_date} | "
+        f"{market.city_name} {bet_descriptor} on {market.target_date} | "
         f"Ensemble: {mean_val:.1f}F +/- {std_val:.1f}F ({forecast.num_members} members) | "
         f"Model YES: {model_yes_prob:.0%} vs Market: {market_yes_prob:.0%} | "
         f"Edge: {edge:+.1%} -> {direction.upper()} @ {entry_price:.0%} | "
@@ -185,6 +197,21 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
         except Exception as e:
             logger.debug(f"Weather signal generation failed for {market.title}: {e}")
 
+    # For bucketed events (one per city+date), keep only the single biggest-edge bucket
+    # so we don't double-bet the same outcome via multiple correlated buckets.
+    best_per_event: dict = {}
+    binary_signals = []
+    for s in signals:
+        m = s.market
+        if m.bucket_type in ("equality", "floor") and m.event_id:
+            key = m.event_id
+            existing = best_per_event.get(key)
+            if existing is None or abs(s.edge) > abs(existing.edge):
+                best_per_event[key] = s
+        else:
+            binary_signals.append(s)
+    signals = binary_signals + list(best_per_event.values())
+
     # Sort by absolute edge
     signals.sort(key=lambda s: abs(s.edge), reverse=True)
 
@@ -192,8 +219,12 @@ async def scan_for_weather_signals() -> List[WeatherTradingSignal]:
     logger.info(f"WEATHER SCAN COMPLETE: {len(signals)} signals, {len(actionable)} actionable")
 
     for signal in actionable[:5]:
-        logger.info(f"  {signal.market.city_name}: {signal.market.metric} {signal.market.direction} "
-                     f"{signal.market.threshold_f:.0f}F | Edge: {signal.edge:+.1%}")
+        m = signal.market
+        if m.bucket_type in ("equality", "floor") and m.bucket_center_c is not None:
+            desc = f"high {'<=' if m.bucket_type=='floor' else '='} {m.bucket_center_c:.0f}C"
+        else:
+            desc = f"{m.metric} {m.direction} {m.threshold_f:.0f}F"
+        logger.info(f"  {m.city_name}: {desc} | Edge: {signal.edge:+.1%}")
 
     # Persist signals to DB
     _persist_weather_signals(signals)

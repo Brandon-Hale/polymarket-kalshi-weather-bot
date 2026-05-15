@@ -31,6 +31,13 @@ const CITIES: Record<string, { lat: number; lng: number; name: string }> = {
   houston: { lat: 29.7604, lng: -95.3698, name: 'HOU' },
   philadelphia: { lat: 39.9526, lng: -75.1652, name: 'PHL' },
   dallas: { lat: 32.7767, lng: -96.797, name: 'DAL' },
+  beijing: { lat: 39.9042, lng: 116.4074, name: 'BEJ' },
+  shanghai: { lat: 31.2304, lng: 121.4737, name: 'SHA' },
+  chongqing: { lat: 29.563, lng: 106.5516, name: 'CQG' },
+  guangzhou: { lat: 23.1291, lng: 113.2644, name: 'CAN' },
+  chengdu: { lat: 30.5728, lng: 104.0668, name: 'CTU' },
+  wuhan: { lat: 30.5928, lng: 114.3055, name: 'WUH' },
+  hong_kong: { lat: 22.3193, lng: 114.1694, name: 'HKG' },
 }
 
 export function GlobeView({ forecasts, signals }: Props) {
@@ -122,7 +129,7 @@ export function GlobeView({ forecasts, signals }: Props) {
   }, [])
 
   return (
-    <div className="globe-container w-full h-full">
+    <div className="globe-container w-full h-full flex items-center justify-center overflow-hidden pt-32">
       <Globe
         ref={globeRef}
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"

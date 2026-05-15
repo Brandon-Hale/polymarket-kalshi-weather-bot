@@ -106,9 +106,8 @@ def calculate_kelly_size(
     # Apply fractional Kelly
     kelly *= settings.KELLY_FRACTION
 
-    # Cap at maximum per-trade limit
-    max_fraction = 0.05  # 5% max per trade
-    kelly = min(kelly, max_fraction)
+    # Cap at per-trade bankroll fraction
+    kelly = min(kelly, settings.MAX_TRADE_BANKROLL_FRACTION)
 
     kelly = max(kelly, 0)
 

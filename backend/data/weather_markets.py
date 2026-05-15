@@ -28,6 +28,14 @@ CITY_ALIASES = {
     "philly": "philadelphia",
     "dallas": "dallas",
     "dfw": "dallas",
+    "beijing": "beijing",
+    "shanghai": "shanghai",
+    "chongqing": "chongqing",
+    "guangzhou": "guangzhou",
+    "chengdu": "chengdu",
+    "wuhan": "wuhan",
+    "hong kong": "hong_kong",
+    "hongkong": "hong_kong",
 }
 
 # Month name to number
@@ -50,13 +58,17 @@ class WeatherMarket:
     city_key: str
     city_name: str
     target_date: date
-    threshold_f: float       # Temperature threshold in Fahrenheit
+    threshold_f: float       # Threshold in Fahrenheit (always F for downstream math)
     metric: str              # "high" or "low"
-    direction: str           # "above" or "below"
+    direction: str           # "above" or "below" (binary) or "equal"/"at_or_below" (bucketed)
     yes_price: float         # Price of YES outcome (0-1)
     no_price: float          # Price of NO outcome (0-1)
     volume: float = 0.0
     closed: bool = False
+    unit: str = "F"          # "F" or "C" — original quoted unit (for display)
+    bucket_type: str = "binary"  # "binary" | "equality" | "floor"
+    bucket_center_c: Optional[float] = None  # For equality buckets (degree center in C)
+    event_id: Optional[str] = None  # For grouping buckets to pick best within event
 
 
 def _parse_weather_market_title(title: str) -> Optional[dict]:
@@ -159,65 +171,159 @@ def _extract_date(text: str) -> Optional[date]:
 async def fetch_polymarket_weather_markets(city_keys: Optional[List[str]] = None) -> List[WeatherMarket]:
     """
     Search Polymarket for weather temperature markets.
-    Searches for temperature/weather events and parses their titles.
+
+    Two paths:
+      1. Public search for the global bucketed Celsius series
+         ("Highest temperature in CITY on DATE?" with 11 °C buckets each).
+      2. Tag=Weather fallback for legacy °F binary above/below markets.
     """
-    markets = []
+    markets: List[WeatherMarket] = []
+    seen_ids = set()
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Search for weather/temperature events
-            for search_term in ["temperature", "weather high", "weather low"]:
-                try:
-                    response = await client.get(
-                        "https://gamma-api.polymarket.com/events",
-                        params={
-                            "closed": "false",
-                            "limit": 100,
-                            "tag": "Weather",
-                        }
-                    )
-                    response.raise_for_status()
-                    events = response.json()
+            # Path 1: bucketed Celsius series via public search
+            try:
+                response = await client.get(
+                    "https://gamma-api.polymarket.com/public-search",
+                    params={"q": "highest temperature", "limit_per_type": 200},
+                )
+                response.raise_for_status()
+                data = response.json()
+                events = data.get("events", []) if isinstance(data, dict) else []
+                for event in events:
+                    event_slug = event.get("slug", "") or ""
+                    event_id = str(event.get("id", "")) if event.get("id") else None
+                    for market_data in event.get("markets", []):
+                        market = _parse_polymarket_bucketed(market_data, event_slug, event_id, city_keys)
+                        if market and market.market_id not in seen_ids:
+                            markets.append(market)
+                            seen_ids.add(market.market_id)
+            except Exception as e:
+                logger.debug(f"Bucketed temperature search failed: {e}")
 
-                    for event in events:
-                        event_slug = event.get("slug", "")
-                        for market_data in event.get("markets", []):
+            # Path 2: legacy binary °F markets under the Weather tag
+            try:
+                response = await client.get(
+                    "https://gamma-api.polymarket.com/events",
+                    params={"closed": "false", "limit": 100, "tag": "Weather"},
+                )
+                response.raise_for_status()
+                events = response.json()
+                for event in events:
+                    event_slug = event.get("slug", "") or ""
+                    event_id = str(event.get("id", "")) if event.get("id") else None
+                    for market_data in event.get("markets", []):
+                        # Try bucketed first (some Celsius markets get the Weather tag too)
+                        market = _parse_polymarket_bucketed(market_data, event_slug, event_id, city_keys)
+                        if market is None:
                             market = _parse_polymarket_weather(market_data, event_slug, city_keys)
-                            if market:
-                                markets.append(market)
-
-                except Exception as e:
-                    logger.debug(f"Weather market search for '{search_term}' failed: {e}")
-
-            # Also try slug-based search for known patterns
-            for slug_pattern in ["weather", "temperature", "temp-"]:
-                try:
-                    response = await client.get(
-                        "https://gamma-api.polymarket.com/events",
-                        params={
-                            "closed": "false",
-                            "limit": 100,
-                            "slug_contains": slug_pattern,
-                        }
-                    )
-                    response.raise_for_status()
-                    events = response.json()
-
-                    for event in events:
-                        event_slug = event.get("slug", "")
-                        for market_data in event.get("markets", []):
-                            market = _parse_polymarket_weather(market_data, event_slug, city_keys)
-                            if market and not any(m.market_id == market.market_id for m in markets):
-                                markets.append(market)
-
-                except Exception as e:
-                    logger.debug(f"Weather slug search for '{slug_pattern}' failed: {e}")
+                        if market and market.market_id not in seen_ids:
+                            markets.append(market)
+                            seen_ids.add(market.market_id)
+            except Exception as e:
+                logger.debug(f"Tag=Weather search failed: {e}")
 
     except Exception as e:
         logger.warning(f"Failed to fetch weather markets: {e}")
 
     logger.info(f"Found {len(markets)} weather temperature markets")
     return markets
+
+
+_BUCKETED_TITLE_RE = re.compile(
+    r"^will the highest temperature in ([a-z ]+?) be\s+"
+    r"(\d{1,3})\s*°?\s*c(?:\s+or below)?\s+on\s+",
+    re.IGNORECASE,
+)
+
+
+def _celsius_to_fahrenheit(c: float) -> float:
+    return c * 9.0 / 5.0 + 32.0
+
+
+def _parse_polymarket_bucketed(
+    market_data: dict,
+    event_slug: str,
+    event_id: Optional[str],
+    city_keys: Optional[List[str]] = None,
+) -> Optional[WeatherMarket]:
+    """
+    Parse a Polymarket bucketed Celsius market.
+
+    Question shapes:
+      - "Will the highest temperature in Beijing be 28°C on May 16?"   (equality)
+      - "Will the highest temperature in Beijing be 25°C or below on May 16?" (floor)
+    """
+    question = market_data.get("question") or market_data.get("groupItemTitle") or ""
+    if not question:
+        return None
+
+    m = _BUCKETED_TITLE_RE.match(question.strip())
+    if not m:
+        return None
+
+    city_phrase = m.group(1).strip().lower()
+    degrees_c = float(m.group(2))
+    is_floor = "or below" in question.lower()
+
+    city_key = CITY_ALIASES.get(city_phrase)
+    if not city_key:
+        return None
+    if city_keys and city_key not in city_keys:
+        return None
+
+    from backend.data.weather import CITY_CONFIG
+    city_name = CITY_CONFIG.get(city_key, {}).get("name", city_phrase.title())
+
+    target_date = _extract_date(question.lower())
+    # Skip same-day and past markets: prices already reflect intraday observations
+    # that the ensemble forecast does not see, producing spurious edges.
+    if not target_date or target_date <= date.today():
+        return None
+
+    outcome_prices = market_data.get("outcomePrices", [])
+    if isinstance(outcome_prices, str):
+        import json
+        try:
+            outcome_prices = json.loads(outcome_prices)
+        except Exception:
+            outcome_prices = []
+    if not outcome_prices or len(outcome_prices) < 2:
+        return None
+
+    try:
+        yes_price = float(outcome_prices[0])
+        no_price = float(outcome_prices[1])
+    except (ValueError, IndexError):
+        return None
+
+    if market_data.get("closed", False):
+        return None
+    if yes_price > 0.98 or yes_price < 0.005:
+        return None
+
+    volume = float(market_data.get("volume", 0) or 0)
+
+    return WeatherMarket(
+        slug=event_slug,
+        market_id=str(market_data.get("id", "")),
+        platform="polymarket",
+        title=question,
+        city_key=city_key,
+        city_name=city_name,
+        target_date=target_date,
+        threshold_f=_celsius_to_fahrenheit(degrees_c),
+        metric="high",
+        direction="at_or_below" if is_floor else "equal",
+        yes_price=yes_price,
+        no_price=no_price,
+        volume=volume,
+        unit="C",
+        bucket_type="floor" if is_floor else "equality",
+        bucket_center_c=degrees_c,
+        event_id=event_id,
+    )
 
 
 def _parse_polymarket_weather(

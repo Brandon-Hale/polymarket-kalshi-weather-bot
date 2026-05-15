@@ -15,14 +15,16 @@ async def fetch_polymarket_resolution(market_id: str, event_slug: Optional[str] 
     """
     Fetch actual market resolution from Polymarket API.
 
-    For BTC 5-min markets, uses event slug to find the market.
+    For events with one market (BTC 5-min), the event slug is sufficient.
+    For events with multiple markets (bucketed weather), we match by market_id
+    within the event's markets list so the right bucket is resolved.
 
     Returns: (is_resolved, settlement_value)
-        - settlement_value: 1.0 if Up won, 0.0 if Down won
+        - settlement_value: 1.0 if Up/Yes won, 0.0 if Down/No won
     """
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            # Try event slug first (more reliable for BTC 5-min markets)
+            # Try event slug first
             if event_slug:
                 response = await client.get(
                     "https://gamma-api.polymarket.com/events",
@@ -35,7 +37,14 @@ async def fetch_polymarket_resolution(market_id: str, event_slug: Optional[str] 
                     event = events[0] if isinstance(events, list) else events
                     markets = event.get("markets", [])
                     if markets:
-                        return _parse_market_resolution(markets[0])
+                        # Multi-market event (bucketed): find this market_id specifically
+                        if market_id:
+                            for m in markets:
+                                if str(m.get("id")) == str(market_id):
+                                    return _parse_market_resolution(m)
+                        # Single-market event (BTC 5-min): fall back to first
+                        if len(markets) == 1:
+                            return _parse_market_resolution(markets[0])
 
             # Fallback: try market ID directly
             url = f"https://gamma-api.polymarket.com/markets/{market_id}"

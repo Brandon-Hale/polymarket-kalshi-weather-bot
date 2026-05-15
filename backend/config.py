@@ -44,7 +44,8 @@ class Settings(BaseSettings):
 
     # Risk management
     DAILY_LOSS_LIMIT: float = 300.0
-    MAX_TRADE_SIZE: float = 75.0
+    MAX_TRADE_SIZE: float = 5000.0  # Absolute dollar cap per trade
+    MAX_TRADE_BANKROLL_FRACTION: float = 0.05  # Cap each trade at 5% of bankroll
     MIN_TIME_REMAINING: int = 60  # Don't trade windows closing in < 60s
     MAX_TIME_REMAINING: int = 1800  # Trade windows up to 30min out
 
@@ -64,8 +65,12 @@ class Settings(BaseSettings):
     WEATHER_SETTLEMENT_INTERVAL_SECONDS: int = 1800  # 30 min
     WEATHER_MIN_EDGE_THRESHOLD: float = 0.08  # 8% — weather has more signal than 5-min BTC
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
-    WEATHER_MAX_TRADE_SIZE: float = 100.0
-    WEATHER_CITIES: str = "nyc,chicago,miami,los_angeles,denver,boston,phoenix,austin,atlanta,seattle,houston,philadelphia,dallas"
+    WEATHER_MAX_TRADE_SIZE: float = 5000.0
+    WEATHER_CITIES: str = (
+        "nyc,chicago,miami,los_angeles,denver,boston,phoenix,austin,atlanta,seattle,"
+        "houston,philadelphia,dallas,"
+        "beijing,shanghai,chongqing,guangzhou,chengdu,wuhan,hong_kong"
+    )
 
     class Config:
         env_file = ".env"

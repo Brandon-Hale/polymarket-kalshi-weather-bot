@@ -115,6 +115,49 @@ CITY_CONFIG: Dict[str, dict] = {
         "nws_office": "FWD",
         "nws_gridpoint": "",
     },
+    # Non-US cities — settled via Polymarket market resolution (no NWS coverage).
+    "beijing": {
+        "name": "Beijing",
+        "lat": 39.9042,
+        "lon": 116.4074,
+        "country": "CN",
+    },
+    "shanghai": {
+        "name": "Shanghai",
+        "lat": 31.2304,
+        "lon": 121.4737,
+        "country": "CN",
+    },
+    "chongqing": {
+        "name": "Chongqing",
+        "lat": 29.5630,
+        "lon": 106.5516,
+        "country": "CN",
+    },
+    "guangzhou": {
+        "name": "Guangzhou",
+        "lat": 23.1291,
+        "lon": 113.2644,
+        "country": "CN",
+    },
+    "chengdu": {
+        "name": "Chengdu",
+        "lat": 30.5728,
+        "lon": 104.0668,
+        "country": "CN",
+    },
+    "wuhan": {
+        "name": "Wuhan",
+        "lat": 30.5928,
+        "lon": 114.3055,
+        "country": "CN",
+    },
+    "hong_kong": {
+        "name": "Hong Kong",
+        "lat": 22.3193,
+        "lon": 114.1694,
+        "country": "HK",
+    },
 }
 
 
@@ -163,6 +206,29 @@ class EnsembleForecast:
     def probability_low_below(self, threshold_f: float) -> float:
         """Fraction of ensemble members with daily low below threshold."""
         return 1.0 - self.probability_low_above(threshold_f)
+
+    def probability_high_in_bucket_c(self, center_c: float) -> float:
+        """
+        Fraction of ensemble members whose daily high falls in [center-0.5, center+0.5)°C.
+        Polymarket bucket markets resolve YES when the observed integer-rounded max == center.
+        """
+        if not self.member_highs:
+            return 0.0
+        low_f = _celsius_to_fahrenheit(center_c - 0.5)
+        high_f = _celsius_to_fahrenheit(center_c + 0.5)
+        count = sum(1 for h in self.member_highs if low_f <= h < high_f)
+        return count / len(self.member_highs)
+
+    def probability_high_at_or_below_c(self, threshold_c: float) -> float:
+        """
+        Fraction of ensemble members whose daily high is at or below threshold_c°C
+        (i.e. integer-rounded max <= threshold_c, treated as < threshold_c + 0.5).
+        """
+        if not self.member_highs:
+            return 0.0
+        cap_f = _celsius_to_fahrenheit(threshold_c + 0.5)
+        count = sum(1 for h in self.member_highs if h < cap_f)
+        return count / len(self.member_highs)
 
     @property
     def ensemble_agreement(self) -> float:

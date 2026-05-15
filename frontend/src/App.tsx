@@ -205,7 +205,7 @@ function App() {
       </motion.header>
 
       {/* ===== MAIN GRID ===== */}
-      <div className="flex-1 min-h-0 grid grid-cols-[300px_1fr_340px] grid-rows-[1fr] gap-0">
+      <div className="flex-1 min-h-0 grid grid-cols-[400px_1fr_560px] grid-rows-[1fr] gap-0">
 
         {/* ===== LEFT COLUMN ===== */}
         <div className="flex flex-col border-r border-neutral-800 min-h-0 overflow-hidden">

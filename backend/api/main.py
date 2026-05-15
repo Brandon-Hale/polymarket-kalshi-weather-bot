@@ -200,6 +200,10 @@ class WeatherSignalResponse(BaseModel):
     ensemble_std: float
     ensemble_members: int
     actionable: bool = False
+    unit: str = "F"
+    bucket_type: str = "binary"
+    bucket_center_c: Optional[float] = None
+    platform: str = "polymarket"
 
 
 class DashboardData(BaseModel):
@@ -768,6 +772,10 @@ def _weather_signal_to_response(s) -> WeatherSignalResponse:
         ensemble_std=s.ensemble_std,
         ensemble_members=s.ensemble_members,
         actionable=s.passes_threshold,
+        unit=getattr(s.market, "unit", "F"),
+        bucket_type=getattr(s.market, "bucket_type", "binary"),
+        bucket_center_c=getattr(s.market, "bucket_center_c", None),
+        platform=getattr(s.market, "platform", "polymarket") or "polymarket",
     )
 
 

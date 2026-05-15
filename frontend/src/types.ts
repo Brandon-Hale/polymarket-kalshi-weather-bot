@@ -123,6 +123,9 @@ export interface WeatherSignal {
   ensemble_members: number
   actionable: boolean
   platform?: string
+  unit?: string
+  bucket_type?: string
+  bucket_center_c?: number | null
 }
 
 export interface DashboardData {
