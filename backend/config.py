@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     INITIAL_BANKROLL: float = 1000.0
     KELLY_FRACTION: float = 0.15  # Fractional Kelly
 
+    # Per-market trading switches — control whether trades are PLACED.
+    # Signal scanning/dashboard display continues regardless. Default both on
+    # so behaviour is unchanged. Set False in .env to silence one stream.
+    BTC_TRADING_ENABLED: bool = True
+    WEATHER_TRADING_ENABLED: bool = True
+
     # BTC 5-min specific settings
     SCAN_INTERVAL_SECONDS: int = 60  # Scan every minute
     SETTLEMENT_INTERVAL_SECONDS: int = 120  # Check settlements every 2 min

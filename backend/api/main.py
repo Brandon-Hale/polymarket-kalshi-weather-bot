@@ -594,6 +594,9 @@ async def simulate_trade(signal_ticker: str, db: Session = Depends(get_db)):
     from backend.core.scheduler import log_event, execute_trade_live_or_sim
     from backend.data.polymarket_trader import live_trading_enabled
 
+    if not settings.BTC_TRADING_ENABLED:
+        raise HTTPException(status_code=400, detail="BTC trading is disabled (BTC_TRADING_ENABLED=False).")
+
     signals = await scan_for_signals()
     signal = next((s for s in signals if s.market.market_id == signal_ticker), None)
 

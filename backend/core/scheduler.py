@@ -185,6 +185,10 @@ async def scan_and_trade_job():
             MAX_TRADE_FRACTION = settings.MAX_TRADE_BANKROLL_FRACTION
             MAX_TOTAL_PENDING = settings.MAX_TOTAL_PENDING_TRADES
 
+            if not settings.BTC_TRADING_ENABLED:
+                log_event("info", "BTC trading disabled — signals scanned but no trades placed")
+                return
+
             if daily_loss_breaker_tripped(db, state):
                 return
 
@@ -319,6 +323,10 @@ async def weather_scan_and_trade_job():
 
             if not state.is_running:
                 log_event("info", "Bot is paused, skipping weather trades")
+                return
+
+            if not settings.WEATHER_TRADING_ENABLED:
+                log_event("info", "Weather trading disabled — signals scanned but no trades placed")
                 return
 
             if daily_loss_breaker_tripped(db, state):

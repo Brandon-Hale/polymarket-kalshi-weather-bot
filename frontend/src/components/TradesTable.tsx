@@ -155,7 +155,7 @@ export function TradesTable({ trades }: Props) {
                     <span className={`font-semibold tabular-nums ${
                       trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'
                     }`}>
-                      {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(0)}
+                      {trade.pnl >= 0 ? '+' : '-'}${Math.abs(trade.pnl).toFixed(0)}
                     </span>
                   ) : (
                     <span className="text-neutral-600">-</span>
