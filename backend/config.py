@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     MAX_TRADES_PER_WINDOW: int = 1
     MAX_TOTAL_PENDING_TRADES: int = 20
     BTC_MAX_TRADES_PER_SCAN: int = 10        # Max new BTC trades per 1-min scan
-    BTC_MAX_TOTAL_ALLOCATION: float = 10000.0  # Max aggregate open BTC notional
+    BTC_MAX_TOTAL_ALLOCATION: float = 1000.0  # Max aggregate open BTC notional
 
     # Risk management
     DAILY_LOSS_FRACTION: float = 0.25  # Halt trading if today's settled losses ≥ 25% of start-of-day bankroll
