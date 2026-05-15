@@ -109,7 +109,7 @@ async def scan_and_trade_job():
 
             MAX_TRADES_PER_SCAN = 2
             MIN_TRADE_SIZE = 10
-            MAX_TRADE_FRACTION = 0.03  # 3% max per trade
+            MAX_TRADE_FRACTION = settings.MAX_TRADE_BANKROLL_FRACTION
             MAX_TOTAL_PENDING = settings.MAX_TOTAL_PENDING_TRADES
 
             if daily_loss_breaker_tripped(db, state):

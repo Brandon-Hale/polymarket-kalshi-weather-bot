@@ -15,7 +15,7 @@ Two independent strategies run side-by-side on the same scheduler:
 
 Both share the same plumbing: signal generation → edge calc → Kelly sizing → entry filters → trade record → periodic settlement → P&L into bankroll. Risk caps and a daily-loss circuit breaker sit above both.
 
-Default mode is paper trading (`SIMULATION_MODE = True`, `config.py:32`) on a $10,000 simulated bankroll (`config.py:33`).
+Default mode is paper trading (`SIMULATION_MODE = True`, `config.py:32`) on a $1,000 simulated bankroll (`config.py:33`).
 
 ---
 
@@ -117,7 +117,7 @@ size   = min(size, MAX_TRADE_SIZE)
 | `MAX_TRADE_BANKROLL_FRACTION` | 5% | `config.py:48` |
 | `MAX_TRADE_SIZE` | $5,000 | `config.py:47` |
 
-A further per-scan cap of 3% of bankroll is applied at the scheduler level (`scheduler.py:88`), and `MIN_TRADE_SIZE = $10` (`scheduler.py:87`) filters dust.
+The scheduler re-applies the same `MAX_TRADE_BANKROLL_FRACTION` cap at execution time (`scheduler.py:112, 134`), and `MIN_TRADE_SIZE = $10` (`scheduler.py:111`) filters dust.
 
 ### 3.6 Execution gate (per scan)
 
@@ -195,7 +195,7 @@ The `$500` pending-exposure cap (`scheduler.py:221`) is the real binding constra
 | Max trades per scan | 2 BTC / 3 weather | Per-cycle | `scheduler.py:86, 219` |
 | Min trade size | $10 | Per-trade | `scheduler.py:87` |
 | Max trade size (relative) | 5% bankroll | Per-trade (Kelly cap) | `config.py:48` |
-| Max trade size (per-scan) | 3% bankroll | Per-trade (scheduler cap) | `scheduler.py:88` |
+| Max trade size (scheduler re-check) | 5% bankroll | Per-trade (mirrors `MAX_TRADE_BANKROLL_FRACTION`) | `scheduler.py:112, 134` |
 | Max trade size (absolute) | $5,000 | Per-trade | `config.py:47` |
 | Kelly fraction | 0.15 | Sizing dampener | `config.py:34` |
 | Re-entry prevention | One trade per `event_slug` | Per-market | `scheduler.py:110-116` |
@@ -250,7 +250,7 @@ Clients exist for Claude (`backend/ai/claude.py`, `claude-sonnet-4-20250514`) an
 | Knob | Default | Purpose |
 |---|---|---|
 | `SIMULATION_MODE` | True | Paper vs live |
-| `INITIAL_BANKROLL` | $10,000 | Starting capital |
+| `INITIAL_BANKROLL` | $1,000 | Starting capital |
 | `KELLY_FRACTION` | 0.15 | Fractional Kelly multiplier |
 | `MIN_EDGE_THRESHOLD` | 0.02 | BTC edge bar |
 | `MAX_ENTRY_PRICE` | 0.55 | BTC max entry |
@@ -295,7 +295,7 @@ scan_and_trade_job (every 60s)
   ├─ pending-trades cap check
   └─ for each signal (max 2):
         ├─ skip if event_slug already has open trade
-        ├─ size = min(suggested, bankroll*3%, MAX_TRADE_SIZE)
+        ├─ size = min(suggested, bankroll*MAX_TRADE_BANKROLL_FRACTION, MAX_TRADE_SIZE)
         ├─ insert Trade, link signal_id, mark signal.executed
         └─ increment BotState.total_trades
 

@@ -403,6 +403,9 @@ def _parse_polymarket_bucketed(
         return None
 
     volume = float(market_data.get("volume", 0) or 0)
+    from backend.config import settings as _settings
+    if volume < _settings.WEATHER_MIN_VOLUME:
+        return None
 
     direction_map = {
         "equality": "equal",

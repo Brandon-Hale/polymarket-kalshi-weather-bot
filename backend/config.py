@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # Bot settings - BTC 5-MIN TRADING
     SIMULATION_MODE: bool = True
-    INITIAL_BANKROLL: float = 10000.0
+    INITIAL_BANKROLL: float = 1000.0
     KELLY_FRACTION: float = 0.15  # Fractional Kelly
 
     # BTC 5-min specific settings
@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     WEATHER_MIN_EDGE_THRESHOLD: float = 0.08  # 8% — weather has more signal than 5-min BTC
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 5000.0
+    WEATHER_MIN_VOLUME: float = 1000.0  # Skip buckets with < $1k lifetime volume (illiquid)
     WEATHER_CITIES: str = (
         # US — cities with active Polymarket coverage
         "nyc,chicago,miami,los_angeles,austin,atlanta,seattle,"
