@@ -1,6 +1,9 @@
 """FastAPI backend for BTC 5-min trading bot dashboard."""
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import csv
+import io
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -441,6 +444,98 @@ async def get_trades(
         )
         for t in trades
     ]
+
+
+@app.get("/api/trades/export.csv")
+async def export_trades_csv(
+    include_pending: bool = False,
+    db: Session = Depends(get_db),
+):
+    """
+    Tax-ready CSV export of all settled trades.
+
+    Columns mirror what a typical accountant or Form 8949-style filing needs:
+    acquisition date/price, disposition date/price, proceeds, cost basis, P&L,
+    holding period. Pending (unsettled) trades are excluded by default.
+    """
+    query = db.query(Trade)
+    if not include_pending:
+        query = query.filter(Trade.result.in_(("win", "loss")))
+    trades = query.order_by(Trade.timestamp.asc()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+    writer.writerow([
+        "trade_id",
+        "platform",
+        "market_type",
+        "market_ticker",
+        "event_slug",
+        "direction",
+        "entry_timestamp_utc",
+        "entry_price",
+        "shares",
+        "cost_basis_usd",
+        "settlement_timestamp_utc",
+        "settlement_value",
+        "result",
+        "proceeds_usd",
+        "realized_pnl_usd",
+        "holding_period_seconds",
+        "holding_period_class",
+        "model_probability_at_entry",
+        "market_price_at_entry",
+        "edge_at_entry",
+        "signal_id",
+    ])
+
+    for t in trades:
+        entry_price = float(t.entry_price or 0)
+        size = float(t.size or 0)
+        shares = (size / entry_price) if entry_price > 0 else 0.0
+        cost_basis = size
+        pnl = float(t.pnl) if t.pnl is not None else 0.0
+        proceeds = cost_basis + pnl  # proceeds - cost_basis = pnl
+
+        if t.settlement_time and t.timestamp:
+            hold_seconds = int((t.settlement_time - t.timestamp).total_seconds())
+            hold_days = hold_seconds / 86400.0
+            hold_class = "long_term" if hold_days > 365 else "short_term"
+        else:
+            hold_seconds = ""
+            hold_class = ""
+
+        writer.writerow([
+            t.id,
+            t.platform or "",
+            getattr(t, "market_type", "") or "",
+            t.market_ticker or "",
+            t.event_slug or "",
+            t.direction or "",
+            t.timestamp.isoformat() if t.timestamp else "",
+            f"{entry_price:.6f}",
+            f"{shares:.6f}",
+            f"{cost_basis:.2f}",
+            t.settlement_time.isoformat() if t.settlement_time else "",
+            t.settlement_value if t.settlement_value is not None else "",
+            t.result or "",
+            f"{proceeds:.2f}",
+            f"{pnl:.2f}",
+            hold_seconds,
+            hold_class,
+            f"{t.model_probability:.6f}" if t.model_probability is not None else "",
+            f"{t.market_price_at_entry:.6f}" if t.market_price_at_entry is not None else "",
+            f"{t.edge_at_entry:.6f}" if t.edge_at_entry is not None else "",
+            t.signal_id if t.signal_id is not None else "",
+        ])
+
+    buf.seek(0)
+    filename = f"trades_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/equity-curve")

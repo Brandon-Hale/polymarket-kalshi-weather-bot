@@ -355,7 +355,16 @@ function App() {
           <div className="flex flex-col min-h-0 border-t border-neutral-800" style={{ height: '50%' }}>
             <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
               <span className="text-[10px] text-neutral-500 uppercase tracking-wider">Trades</span>
-              <span className="text-[10px] text-neutral-600 tabular-nums">{recentTrades.length}</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/trades/export.csv`}
+                  className="px-1.5 py-0.5 text-[9px] font-medium uppercase bg-neutral-900 border border-neutral-700 hover:border-neutral-500 text-neutral-300 transition-colors"
+                  title="Download settled trades as a tax-ready CSV"
+                >
+                  Export CSV
+                </a>
+                <span className="text-[10px] text-neutral-600 tabular-nums">{recentTrades.length}</span>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
               <TradesTable trades={recentTrades} />
