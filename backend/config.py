@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # Kalshi API
     KALSHI_API_KEY_ID: Optional[str] = None
     KALSHI_PRIVATE_KEY_PATH: Optional[str] = None
-    KALSHI_ENABLED: bool = True
+    KALSHI_ENABLED: bool = False
 
     # AI API Keys
     GROQ_API_KEY: Optional[str] = None
@@ -65,10 +65,11 @@ class Settings(BaseSettings):
     WEATHER_MIN_EDGE_THRESHOLD: float = 0.08  # 8% — weather has more signal than 5-min BTC
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 100.0
-    WEATHER_CITIES: str = "nyc,chicago,miami,los_angeles,denver"
+    WEATHER_CITIES: str = "nyc,chicago,miami,los_angeles,denver,boston,phoenix,austin,atlanta,seattle,houston,philadelphia,dallas"
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()

@@ -10,14 +10,24 @@ logger = logging.getLogger("trading_bot")
 
 # Map city names/variants found in market titles to our city keys
 CITY_ALIASES = {
+    "new york city": "nyc",
     "new york": "nyc",
     "nyc": "nyc",
-    "new york city": "nyc",
     "chicago": "chicago",
     "miami": "miami",
     "los angeles": "los_angeles",
     "la": "los_angeles",
     "denver": "denver",
+    "boston": "boston",
+    "phoenix": "phoenix",
+    "austin": "austin",
+    "atlanta": "atlanta",
+    "seattle": "seattle",
+    "houston": "houston",
+    "philadelphia": "philadelphia",
+    "philly": "philadelphia",
+    "dallas": "dallas",
+    "dfw": "dallas",
 }
 
 # Month name to number
