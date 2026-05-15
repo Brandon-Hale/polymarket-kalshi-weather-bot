@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from dataclasses import dataclass
 
@@ -108,25 +108,21 @@ def _parse_event_to_btc_market(event: dict) -> Optional[BtcMarket]:
         except (json.JSONDecodeError, ValueError, TypeError):
             pass
 
-    # Parse timestamps
+    # Parse timestamps.
+    # Polymarket's `startDate` is the market-listing time (often the previous day),
+    # NOT the 5-min prediction window start. The actual prediction window is
+    # the 5 minutes ending at `endDate`, so derive window_start from window_end.
     slug = event.get("slug", "")
-    start_str = event.get("startDate") or market.get("startDate")
     end_str = event.get("endDate") or market.get("endDate")
 
-    window_start = datetime.now(timezone.utc)
     window_end = datetime.now(timezone.utc)
-
-    if start_str:
-        try:
-            window_start = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-        except (ValueError, AttributeError):
-            pass
-
     if end_str:
         try:
             window_end = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
         except (ValueError, AttributeError):
             pass
+
+    window_start = window_end - timedelta(minutes=5)
 
     return BtcMarket(
         slug=slug,

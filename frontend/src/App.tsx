@@ -29,24 +29,45 @@ function LiveClock() {
   )
 }
 
-function WindowPill({ window: w }: { window: BtcWindow }) {
+function WindowRow({ window: w }: { window: BtcWindow }) {
   const [countdown, setCountdown] = useState(w.time_until_end)
 
   useEffect(() => {
+    setCountdown(w.time_until_end)
     const interval = setInterval(() => {
       setCountdown(prev => Math.max(0, prev - 1))
     }, 1000)
     return () => clearInterval(interval)
   }, [w.time_until_end])
 
+  const start = new Date(w.window_start)
+  const startStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+
+  const stateCls = w.is_active
+    ? 'border-l-2 border-l-amber-500 bg-amber-500/5'
+    : w.is_upcoming
+      ? 'border-l-2 border-l-blue-500'
+      : 'border-l-2 border-l-transparent'
+
   return (
-    <div className={`flex items-center gap-2 px-2 py-1 border shrink-0 ${w.is_active ? 'border-amber-500/30 bg-amber-500/5' : 'border-neutral-800 bg-neutral-900/50'}`}>
-      {w.is_active && <span className="text-[9px] font-bold text-amber-400 uppercase">Live</span>}
-      {w.is_upcoming && <span className="text-[9px] font-medium text-blue-400 uppercase">Next</span>}
-      <span className="text-[10px] tabular-nums text-green-400">{(w.up_price * 100).toFixed(0)}c</span>
-      <span className="text-neutral-600 text-[10px]">/</span>
-      <span className="text-[10px] tabular-nums text-red-400">{(w.down_price * 100).toFixed(0)}c</span>
-      <span className="text-[10px] tabular-nums text-neutral-500">{formatCountdown(countdown)}</span>
+    <div className={`grid grid-cols-[40px_30px_30px_38px_38px] gap-1 items-center px-1.5 py-1 text-[10px] tabular-nums ${stateCls}`}>
+      <span className="text-neutral-400">{startStr}</span>
+      <span className="text-green-400 text-right">{(w.up_price * 100).toFixed(0)}c</span>
+      <span className="text-red-400 text-right">{(w.down_price * 100).toFixed(0)}c</span>
+      <span className="text-neutral-600 text-right">${w.volume >= 1000 ? `${(w.volume / 1000).toFixed(1)}k` : w.volume.toFixed(0)}</span>
+      <span className={`text-right ${w.is_active ? 'text-amber-400' : 'text-neutral-500'}`}>{formatCountdown(countdown)}</span>
+    </div>
+  )
+}
+
+function WindowsHeader() {
+  return (
+    <div className="grid grid-cols-[40px_30px_30px_38px_38px] gap-1 items-center px-1.5 py-1 text-[9px] uppercase tracking-wider text-neutral-600 border-b border-neutral-800/50">
+      <span>Start</span>
+      <span className="text-right">Up</span>
+      <span className="text-right">Down</span>
+      <span className="text-right">Vol</span>
+      <span className="text-right">Closes</span>
     </div>
   )
 }
@@ -178,7 +199,8 @@ function App() {
         </div>
 
         {btcPrice && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">BTC</span>
             <span className="text-sm font-bold tabular-nums text-neutral-100">
               ${btcPrice.price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
@@ -205,7 +227,7 @@ function App() {
       </motion.header>
 
       {/* ===== MAIN GRID ===== */}
-      <div className="flex-1 min-h-0 grid grid-cols-[400px_1fr_560px] grid-rows-[1fr] gap-0">
+      <div className="flex-1 min-h-0 grid grid-cols-[400px_1fr_590px] grid-rows-[1fr] gap-0">
 
         {/* ===== LEFT COLUMN ===== */}
         <div className="flex flex-col border-r border-neutral-800 min-h-0 overflow-hidden">
@@ -287,8 +309,8 @@ function App() {
             </div>
           </div>
 
-          {/* Bottom panels - 3 side by side */}
-          <div className="flex-1 min-h-0 grid grid-cols-3 border-t border-neutral-800">
+          {/* Bottom panels - Edge Dist | (narrow) BTC Windows | Weather */}
+          <div className="flex-1 min-h-0 grid grid-cols-[1fr_220px_1fr] border-t border-neutral-800">
             {/* Edge Distribution */}
             <div className="border-r border-neutral-800 flex flex-col min-h-0">
               <div className="px-2 py-1 border-b border-neutral-800 shrink-0">
@@ -301,14 +323,18 @@ function App() {
 
             {/* BTC Windows */}
             <div className="border-r border-neutral-800 flex flex-col min-h-0">
-              <div className="px-2 py-1 border-b border-neutral-800 shrink-0">
-                <span className="text-[10px] text-neutral-500 uppercase tracking-wider">BTC Windows</span>
+              <div className="px-2 py-1 border-b border-neutral-800 flex items-center justify-between shrink-0">
+                <span className="text-[10px] text-neutral-500 uppercase tracking-wider">BTC 5-min Markets</span>
+                <span className="text-[9px] text-neutral-600 tabular-nums">{windows.length}</span>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-1 space-y-1">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 {windows.length > 0 ? (
-                  windows.slice(0, 10).map(w => (
-                    <WindowPill key={w.slug} window={w} />
-                  ))
+                  <>
+                    <WindowsHeader />
+                    {windows.slice(0, 20).map(w => (
+                      <WindowRow key={w.slug} window={w} />
+                    ))}
+                  </>
                 ) : (
                   <div className="text-[10px] text-neutral-600 p-2">No active windows</div>
                 )}

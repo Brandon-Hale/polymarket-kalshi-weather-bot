@@ -20,7 +20,23 @@ from backend.core.signals import scan_for_signals, TradingSignal
 from backend.data.btc_markets import fetch_active_btc_markets, BtcMarket
 from backend.data.crypto import fetch_crypto_price, compute_btc_microstructure
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from datetime import timezone as _tz
+
+
+def _to_utc_iso(dt: datetime) -> str:
+    """Serialise a (possibly naive) UTC datetime as an ISO string with 'Z' suffix
+    so JS `new Date(...)` interprets it as UTC instead of local time."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_tz.utc)
+    else:
+        dt = dt.astimezone(_tz.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+class UTCBaseModel(BaseModel):
+    """Pydantic base that emits all datetime fields as UTC ISO strings ending in 'Z'."""
+    model_config = ConfigDict(json_encoders={datetime: _to_utc_iso})
 
 app = FastAPI(
     title="BTC 5-Min Trading Bot",
@@ -62,7 +78,7 @@ ws_manager = ConnectionManager()
 
 
 # Pydantic response models
-class BtcPriceResponse(BaseModel):
+class BtcPriceResponse(UTCBaseModel):
     price: float
     change_24h: float
     change_7d: float
@@ -71,7 +87,7 @@ class BtcPriceResponse(BaseModel):
     last_updated: datetime
 
 
-class BtcWindowResponse(BaseModel):
+class BtcWindowResponse(UTCBaseModel):
     slug: str
     market_id: str
     up_price: float
@@ -85,7 +101,7 @@ class BtcWindowResponse(BaseModel):
     spread: float
 
 
-class MicrostructureResponse(BaseModel):
+class MicrostructureResponse(UTCBaseModel):
     rsi: float = 50.0
     momentum_1m: float = 0.0
     momentum_5m: float = 0.0
@@ -97,7 +113,7 @@ class MicrostructureResponse(BaseModel):
     source: str = "unknown"
 
 
-class SignalResponse(BaseModel):
+class SignalResponse(UTCBaseModel):
     market_ticker: str
     market_title: str
     platform: str
@@ -117,7 +133,7 @@ class SignalResponse(BaseModel):
     actionable: bool = False
 
 
-class TradeResponse(BaseModel):
+class TradeResponse(UTCBaseModel):
     id: int
     market_ticker: str
     platform: str
@@ -131,7 +147,7 @@ class TradeResponse(BaseModel):
     pnl: Optional[float]
 
 
-class BotStats(BaseModel):
+class BotStats(UTCBaseModel):
     bankroll: float
     total_trades: int
     winning_trades: int
@@ -143,14 +159,14 @@ class BotStats(BaseModel):
     last_run: Optional[datetime]
 
 
-class CalibrationBucket(BaseModel):
+class CalibrationBucket(UTCBaseModel):
     bucket: str
     predicted_avg: float
     actual_rate: float
     count: int
 
 
-class CalibrationSummary(BaseModel):
+class CalibrationSummary(UTCBaseModel):
     total_signals: int
     total_with_outcome: int
     accuracy: float
@@ -159,7 +175,7 @@ class CalibrationSummary(BaseModel):
     brier_score: float
 
 
-class WeatherForecastResponse(BaseModel):
+class WeatherForecastResponse(UTCBaseModel):
     city_key: str
     city_name: str
     target_date: str
@@ -171,7 +187,7 @@ class WeatherForecastResponse(BaseModel):
     ensemble_agreement: float
 
 
-class WeatherMarketResponse(BaseModel):
+class WeatherMarketResponse(UTCBaseModel):
     slug: str
     market_id: str
     platform: str = "polymarket"
@@ -187,7 +203,7 @@ class WeatherMarketResponse(BaseModel):
     volume: float
 
 
-class WeatherSignalResponse(BaseModel):
+class WeatherSignalResponse(UTCBaseModel):
     market_id: str
     city_key: str
     city_name: str
@@ -212,7 +228,7 @@ class WeatherSignalResponse(BaseModel):
     platform: str = "polymarket"
 
 
-class DashboardData(BaseModel):
+class DashboardData(UTCBaseModel):
     stats: BotStats
     btc_price: Optional[BtcPriceResponse]
     microstructure: Optional[MicrostructureResponse] = None
@@ -225,7 +241,7 @@ class DashboardData(BaseModel):
     weather_forecasts: List[WeatherForecastResponse] = []
 
 
-class EventResponse(BaseModel):
+class EventResponse(UTCBaseModel):
     timestamp: str
     type: str
     message: str
