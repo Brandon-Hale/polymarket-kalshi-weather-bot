@@ -128,6 +128,7 @@ export interface WeatherSignal {
   unit?: string
   bucket_type?: string
   bucket_center_c?: number | null
+  bucket_label?: string
 }
 
 export interface DashboardData {

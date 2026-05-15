@@ -43,30 +43,6 @@ CITY_CONFIG: Dict[str, dict] = {
         "nws_office": "LOX",
         "nws_gridpoint": "LOX/154,44",
     },
-    "denver": {
-        "name": "Denver",
-        "lat": 39.7392,
-        "lon": -104.9903,
-        "nws_station": "KDEN",
-        "nws_office": "BOU",
-        "nws_gridpoint": "BOU/62,60",
-    },
-    "boston": {
-        "name": "Boston",
-        "lat": 42.3601,
-        "lon": -71.0589,
-        "nws_station": "KBOS",
-        "nws_office": "BOX",
-        "nws_gridpoint": "",
-    },
-    "phoenix": {
-        "name": "Phoenix",
-        "lat": 33.4484,
-        "lon": -112.0740,
-        "nws_station": "KPHX",
-        "nws_office": "PSR",
-        "nws_gridpoint": "",
-    },
     "austin": {
         "name": "Austin",
         "lat": 30.2672,
@@ -89,30 +65,6 @@ CITY_CONFIG: Dict[str, dict] = {
         "lon": -122.3321,
         "nws_station": "KSEA",
         "nws_office": "SEW",
-        "nws_gridpoint": "",
-    },
-    "houston": {
-        "name": "Houston",
-        "lat": 29.7604,
-        "lon": -95.3698,
-        "nws_station": "KIAH",
-        "nws_office": "HGX",
-        "nws_gridpoint": "",
-    },
-    "philadelphia": {
-        "name": "Philadelphia",
-        "lat": 39.9526,
-        "lon": -75.1652,
-        "nws_station": "KPHL",
-        "nws_office": "PHI",
-        "nws_gridpoint": "",
-    },
-    "dallas": {
-        "name": "Dallas",
-        "lat": 32.7767,
-        "lon": -96.7970,
-        "nws_station": "KDFW",
-        "nws_office": "FWD",
         "nws_gridpoint": "",
     },
     # Non-US cities — settled via Polymarket market resolution (no NWS coverage).
@@ -158,6 +110,18 @@ CITY_CONFIG: Dict[str, dict] = {
         "lon": 114.1694,
         "country": "HK",
     },
+    "shenzhen": {"name": "Shenzhen", "lat": 22.5431, "lon": 114.0579, "country": "CN"},
+    "london": {"name": "London", "lat": 51.5074, "lon": -0.1278, "country": "GB"},
+    "paris": {"name": "Paris", "lat": 48.8566, "lon": 2.3522, "country": "FR"},
+    "madrid": {"name": "Madrid", "lat": 40.4168, "lon": -3.7038, "country": "ES"},
+    "milan": {"name": "Milan", "lat": 45.4642, "lon": 9.1900, "country": "IT"},
+    "munich": {"name": "Munich", "lat": 48.1351, "lon": 11.5820, "country": "DE"},
+    "amsterdam": {"name": "Amsterdam", "lat": 52.3676, "lon": 4.9041, "country": "NL"},
+    "warsaw": {"name": "Warsaw", "lat": 52.2297, "lon": 21.0122, "country": "PL"},
+    "helsinki": {"name": "Helsinki", "lat": 60.1699, "lon": 24.9384, "country": "FI"},
+    "moscow": {"name": "Moscow", "lat": 55.7558, "lon": 37.6173, "country": "RU"},
+    "istanbul": {"name": "Istanbul", "lat": 41.0082, "lon": 28.9784, "country": "TR"},
+    "ankara": {"name": "Ankara", "lat": 39.9334, "lon": 32.8597, "country": "TR"},
 }
 
 
@@ -207,28 +171,20 @@ class EnsembleForecast:
         """Fraction of ensemble members with daily low below threshold."""
         return 1.0 - self.probability_low_above(threshold_f)
 
-    def probability_high_in_bucket_c(self, center_c: float) -> float:
+    def probability_in_range_f(self, low_f: float, high_f: float, metric: str = "high") -> float:
         """
-        Fraction of ensemble members whose daily high falls in [center-0.5, center+0.5)°C.
-        Polymarket bucket markets resolve YES when the observed integer-rounded max == center.
-        """
-        if not self.member_highs:
-            return 0.0
-        low_f = _celsius_to_fahrenheit(center_c - 0.5)
-        high_f = _celsius_to_fahrenheit(center_c + 0.5)
-        count = sum(1 for h in self.member_highs if low_f <= h < high_f)
-        return count / len(self.member_highs)
+        Fraction of ensemble members whose daily high (or low) falls in [low_f, high_f)°F.
 
-    def probability_high_at_or_below_c(self, threshold_c: float) -> float:
+        Works for any bucket shape: pass +/- infinity for floor/ceiling, a narrow range
+        for equality, a wider range for "between A-B" markets.
+
+        metric: "high" → use member_highs (daily max); "low" → use member_lows (daily min).
         """
-        Fraction of ensemble members whose daily high is at or below threshold_c°C
-        (i.e. integer-rounded max <= threshold_c, treated as < threshold_c + 0.5).
-        """
-        if not self.member_highs:
+        members = self.member_highs if metric == "high" else self.member_lows
+        if not members:
             return 0.0
-        cap_f = _celsius_to_fahrenheit(threshold_c + 0.5)
-        count = sum(1 for h in self.member_highs if h < cap_f)
-        return count / len(self.member_highs)
+        count = sum(1 for m in members if low_f <= m < high_f)
+        return count / len(members)
 
     @property
     def ensemble_agreement(self) -> float:

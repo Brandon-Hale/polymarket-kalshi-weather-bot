@@ -18,19 +18,15 @@ interface CityMarker {
 }
 
 const CITIES: Record<string, { lat: number; lng: number; name: string }> = {
+  // US
   nyc: { lat: 40.7128, lng: -74.006, name: 'NYC' },
   chicago: { lat: 41.8781, lng: -87.6298, name: 'CHI' },
   miami: { lat: 25.7617, lng: -80.1918, name: 'MIA' },
   los_angeles: { lat: 34.0522, lng: -118.2437, name: 'LA' },
-  denver: { lat: 39.7392, lng: -104.9903, name: 'DEN' },
-  boston: { lat: 42.3601, lng: -71.0589, name: 'BOS' },
-  phoenix: { lat: 33.4484, lng: -112.074, name: 'PHX' },
   austin: { lat: 30.2672, lng: -97.7431, name: 'AUS' },
   atlanta: { lat: 33.749, lng: -84.388, name: 'ATL' },
   seattle: { lat: 47.6062, lng: -122.3321, name: 'SEA' },
-  houston: { lat: 29.7604, lng: -95.3698, name: 'HOU' },
-  philadelphia: { lat: 39.9526, lng: -75.1652, name: 'PHL' },
-  dallas: { lat: 32.7767, lng: -96.797, name: 'DAL' },
+  // China + HK
   beijing: { lat: 39.9042, lng: 116.4074, name: 'BEJ' },
   shanghai: { lat: 31.2304, lng: 121.4737, name: 'SHA' },
   chongqing: { lat: 29.563, lng: 106.5516, name: 'CQG' },
@@ -38,6 +34,19 @@ const CITIES: Record<string, { lat: number; lng: number; name: string }> = {
   chengdu: { lat: 30.5728, lng: 104.0668, name: 'CTU' },
   wuhan: { lat: 30.5928, lng: 114.3055, name: 'WUH' },
   hong_kong: { lat: 22.3193, lng: 114.1694, name: 'HKG' },
+  shenzhen: { lat: 22.5431, lng: 114.0579, name: 'SZX' },
+  // Europe
+  london: { lat: 51.5074, lng: -0.1278, name: 'LON' },
+  paris: { lat: 48.8566, lng: 2.3522, name: 'PAR' },
+  madrid: { lat: 40.4168, lng: -3.7038, name: 'MAD' },
+  milan: { lat: 45.4642, lng: 9.19, name: 'MIL' },
+  munich: { lat: 48.1351, lng: 11.582, name: 'MUC' },
+  amsterdam: { lat: 52.3676, lng: 4.9041, name: 'AMS' },
+  warsaw: { lat: 52.2297, lng: 21.0122, name: 'WAW' },
+  helsinki: { lat: 60.1699, lng: 24.9384, name: 'HEL' },
+  moscow: { lat: 55.7558, lng: 37.6173, name: 'MOW' },
+  istanbul: { lat: 41.0082, lng: 28.9784, name: 'IST' },
+  ankara: { lat: 39.9334, lng: 32.8597, name: 'ANK' },
 }
 
 export function GlobeView({ forecasts, signals }: Props) {

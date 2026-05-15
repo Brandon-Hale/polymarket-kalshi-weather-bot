@@ -81,10 +81,15 @@ export function SignalsTable({ signals, weatherSignals, onSimulateTrade, isSimul
 
     const wx: UnifiedSignal[] = weatherSignals.map(s => {
       let title: string
-      if (s.bucket_type === 'equality' && s.bucket_center_c != null) {
-        title = `${s.city_name} high = ${s.bucket_center_c.toFixed(0)}°C`
-      } else if (s.bucket_type === 'floor' && s.bucket_center_c != null) {
-        title = `${s.city_name} high ≤ ${s.bucket_center_c.toFixed(0)}°C`
+      const metricLabel = s.metric === 'low' ? 'low' : 'high'
+      if (s.bucket_label) {
+        const op =
+          s.bucket_type === 'equality' ? '=' :
+          s.bucket_type === 'floor' ? '≤' :
+          s.bucket_type === 'ceiling' ? '≥' :
+          s.bucket_type === 'range' ? 'in' :
+          '='
+        title = `${s.city_name} ${metricLabel} ${op} ${s.bucket_label}`
       } else {
         const unit = s.unit ?? 'F'
         title = `${s.city_name} ${s.metric} ${s.direction} ${s.threshold_f.toFixed(0)}°${unit}`

@@ -6,16 +6,6 @@ interface Props {
   signals: WeatherSignal[]
 }
 
-function AgreementBar({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, value * 100))
-  const color = value > 0.7 ? '#22c55e' : value > 0.5 ? '#d97706' : '#dc2626'
-  return (
-    <div className="edge-bar w-12">
-      <div className="edge-fill" style={{ width: `${pct}%`, backgroundColor: color }} />
-    </div>
-  )
-}
-
 export function WeatherPanel({ forecasts, signals }: Props) {
   if (forecasts.length === 0 && signals.length === 0) {
     return (

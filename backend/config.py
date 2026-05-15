@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     MAX_TOTAL_PENDING_TRADES: int = 20
 
     # Risk management
-    DAILY_LOSS_LIMIT: float = 300.0
+    DAILY_LOSS_FRACTION: float = 0.25  # Halt trading if today's settled losses ≥ 25% of start-of-day bankroll
     MAX_TRADE_SIZE: float = 5000.0  # Absolute dollar cap per trade
     MAX_TRADE_BANKROLL_FRACTION: float = 0.05  # Cap each trade at 5% of bankroll
     MIN_TIME_REMAINING: int = 60  # Don't trade windows closing in < 60s
@@ -67,9 +67,13 @@ class Settings(BaseSettings):
     WEATHER_MAX_ENTRY_PRICE: float = 0.70
     WEATHER_MAX_TRADE_SIZE: float = 5000.0
     WEATHER_CITIES: str = (
-        "nyc,chicago,miami,los_angeles,denver,boston,phoenix,austin,atlanta,seattle,"
-        "houston,philadelphia,dallas,"
-        "beijing,shanghai,chongqing,guangzhou,chengdu,wuhan,hong_kong"
+        # US — cities with active Polymarket coverage
+        "nyc,chicago,miami,los_angeles,austin,atlanta,seattle,"
+        # China + HK
+        "beijing,shanghai,chongqing,guangzhou,chengdu,wuhan,hong_kong,shenzhen,"
+        # Europe
+        "london,paris,madrid,milan,munich,amsterdam,warsaw,helsinki,moscow,"
+        "istanbul,ankara"
     )
 
     class Config:

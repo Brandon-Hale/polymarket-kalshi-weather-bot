@@ -183,7 +183,7 @@ All settings in `backend/config.py`, overridable via environment variables:
 ### Risk Management
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `DAILY_LOSS_LIMIT` | 300.0 | Daily loss circuit breaker |
+| `DAILY_LOSS_FRACTION` | 0.25 | Daily loss circuit breaker — fraction of start-of-day bankroll |
 | `MAX_TOTAL_PENDING_TRADES` | 20 | Max open positions |
 | `INITIAL_BANKROLL` | 10000.0 | Starting paper bankroll |
 

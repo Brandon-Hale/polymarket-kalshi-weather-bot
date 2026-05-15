@@ -52,6 +52,30 @@ def get_recent_events(limit: int = 50) -> List[dict]:
     return event_log[-limit:]
 
 
+def daily_loss_breaker_tripped(db, state) -> bool:
+    """
+    Global circuit breaker: halts trading (BTC + weather) when today's settled
+    losses reach DAILY_LOSS_FRACTION of the start-of-day bankroll.
+
+    Settled P&L only — open losing positions don't count until they resolve.
+    Resets at midnight UTC because the query window slides.
+    """
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    daily_pnl = db.query(func.coalesce(func.sum(Trade.pnl), 0.0)).filter(
+        Trade.settled == True,
+        Trade.settlement_time >= today_start
+    ).scalar()
+
+    # state.bankroll already reflects today's settled P&L, so add it back to recover start-of-day value
+    start_of_day_bankroll = state.bankroll - daily_pnl
+    daily_loss_limit = start_of_day_bankroll * settings.DAILY_LOSS_FRACTION
+
+    if daily_pnl <= -daily_loss_limit:
+        log_event("warning", f"Daily loss limit hit: ${daily_pnl:.2f} (limit: -${daily_loss_limit:.2f}, {settings.DAILY_LOSS_FRACTION:.0%} of start-of-day bankroll ${start_of_day_bankroll:.2f}). Halting all trading.")
+        return True
+    return False
+
+
 async def scan_and_trade_job():
     """
     Background job: Scan BTC 5-min markets, generate signals, execute trades.
@@ -88,15 +112,7 @@ async def scan_and_trade_job():
             MAX_TRADE_FRACTION = 0.03  # 3% max per trade
             MAX_TOTAL_PENDING = settings.MAX_TOTAL_PENDING_TRADES
 
-            # --- Daily loss circuit breaker ---
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-            daily_pnl = db.query(func.coalesce(func.sum(Trade.pnl), 0.0)).filter(
-                Trade.settled == True,
-                Trade.settlement_time >= today_start
-            ).scalar()
-
-            if daily_pnl <= -settings.DAILY_LOSS_LIMIT:
-                log_event("warning", f"Daily loss limit hit: ${daily_pnl:.2f} (limit: -${settings.DAILY_LOSS_LIMIT:.0f}). Stopping trades.")
+            if daily_loss_breaker_tripped(db, state):
                 return
 
             total_pending = db.query(Trade).filter(Trade.settled == False).count()
@@ -214,6 +230,9 @@ async def weather_scan_and_trade_job():
 
             if not state.is_running:
                 log_event("info", "Bot is paused, skipping weather trades")
+                return
+
+            if daily_loss_breaker_tripped(db, state):
                 return
 
             MAX_TRADES_PER_SCAN = 3
